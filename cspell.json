@@ -3,7 +3,10 @@
   "ignorePaths": [],
   "dictionaryDefinitions": [],
   "dictionaries": [],
-  "words": ["fdb"],
+  "words": [
+    "fdb",
+    "Lichess"
+  ],
   "ignoreWords": [],
   "import": []
 }
