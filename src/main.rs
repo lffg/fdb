@@ -3,6 +3,11 @@ use std::{
     io::{self, Read, Seek, SeekFrom, Write},
 };
 
+mod catalog;
+mod config;
+mod disk_manager;
+mod page;
+
 #[derive(Debug)]
 struct Record {
     is_deleted: bool,
