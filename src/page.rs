@@ -2,7 +2,7 @@ use std::{io, num::NonZeroU32};
 
 use bytes::{Buf, BufMut};
 
-use crate::{catalog, config::PAGE_SIZE};
+use crate::{catalog, config::PAGE_SIZE, error::DbResult};
 
 /// A contract that represents an in-memory page.
 ///
@@ -22,8 +22,8 @@ pub trait Page: Sized {
     fn serialize(&self, buf: &mut dyn BufMut);
 
     /// Deserializes the page.
-    // TODO: Review `io::Error` failure type.
-    fn deserialize(buf: &dyn Buf) -> io::Result<Self>;
+    // TODO: Maybe use an associated type to encode the error.
+    fn deserialize(buf: &dyn Buf) -> DbResult<Self>;
 }
 
 /// A wrapper that represents a page id.
@@ -78,8 +78,23 @@ impl Page for FirstPage {
         todo!()
     }
 
-    fn deserialize(buf: &dyn Buf) -> io::Result<Self> {
+    fn deserialize(buf: &dyn Buf) -> DbResult<Self> {
         todo!()
+    }
+}
+
+impl Default for FirstPage {
+    fn default() -> Self {
+        Self {
+            file_format_version: 0,
+            page_count: 0,
+            first_free_list_page_id: None,
+            catalog: CatalogPageData {
+                next_id: None,
+                object_count: 0,
+                objects: vec![],
+            },
+        }
     }
 }
 

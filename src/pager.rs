@@ -1,10 +1,9 @@
-use std::io;
-
 use bytes::BytesMut;
 
 use crate::{
     config::PAGE_SIZE,
     disk_manager::DiskManager,
+    error::DbResult,
     page::{Page, PageId},
 };
 
@@ -27,12 +26,12 @@ impl Pager {
     }
 
     /// Given a page ID, fetches it from the disk.
-    pub fn load<P: Page>(&mut self, id: PageId) -> io::Result<P> {
+    pub fn load<P: Page>(&mut self, id: PageId) -> DbResult<P> {
         // TODO: Use a buffer pool.
         let mut buf = BytesMut::zeroed(PAGE_SIZE as usize);
 
         self.dm.read_page(id, &mut buf)?;
-        let page = P::deserialize(&mut buf)?;
+        let page = P::deserialize(&buf)?;
 
         Ok(page)
     }

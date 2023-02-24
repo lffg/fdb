@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 bytes = "1.4.0"
+thiserror = "1.0.38"

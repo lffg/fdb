@@ -10,7 +10,8 @@
     "lffg",
     "Lichess",
     "repr",
-    "Roadmap"
+    "Roadmap",
+    "thiserror"
   ],
   "ignoreWords": [],
   "import": []
