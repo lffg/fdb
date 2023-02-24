@@ -1,3 +1,6 @@
+[workspace]
+members = ["buff"]
+
 [package]
 name = "fdb"
 version = "0.1.0"
