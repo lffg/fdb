@@ -1,62 +1,60 @@
-use bytes::{Buf, BufMut};
+use crate::page::PageId;
 
-pub trait Type: Sized {
-    type Error;
-
-    fn type_name() -> &'static str;
-    fn size(&self) -> TypeSize;
-
-    fn serialize(&self, out: &mut dyn BufMut) -> Result<(), Self::Error>;
-    fn deserialize(buf: &mut dyn Buf) -> Result<Self, Self::Error>;
+/// `fdb` possible value types.
+#[derive(Copy, Clone, Debug)]
+pub enum TypeId {
+    Bool,
+    Byte,
+    ShortInt,
+    Int,
+    BigInt,
+    DateTime,
+    Text,
+    Blob,
 }
 
-pub enum TypeSize {
-    Fixed(usize),
-    Varying(usize),
-}
-
-pub mod types {
-    use super::*;
-
-    struct Number<T>(T);
-
-    pub type Byte = Number<u8>;
-
-    pub type ShortInt = Number<i16>;
-    pub type Int = Number<i32>;
-    pub type BigInt = Number<i64>;
-    pub type Float = Number<f64>;
-
-    macro_rules! impl_type {
-        ($($name:ident::<$type:ty>($get:ident, $put:ident),)+) => {
-            $(
-                impl Type for Number<$type> {
-                    type Error = std::convert::Infallible;
-
-                    fn type_name() -> &'static str {
-                        stringify!($name)
-                    }
-
-                    fn size(&self) -> TypeSize {
-                        TypeSize::Fixed(std::mem::size_of::<$type>())
-                    }
-
-                    fn serialize(&self, out: &mut dyn BufMut) -> Result<(), Self::Error> {
-                        out.$put(self.0);
-                        Ok(())
-                    }
-
-                    fn deserialize(buf: &mut dyn Buf) -> Result<Self, Self::Error> {
-                        Ok(Self(buf.$get()))
-                    }
-                }
-            )+
-        };
+impl TypeId {
+    /// Returns the size (in bytes) for the given type.
+    pub const fn size(self) -> u8 {
+        match self {
+            TypeId::Bool | TypeId::Byte => 1,
+            TypeId::ShortInt => 2,
+            TypeId::Int => 4,
+            TypeId::BigInt => 8,
+            TypeId::DateTime => panic!("todo(lffg): decide on DateTime representation"),
+            TypeId::Text | TypeId::Blob => 16,
+        }
     }
+}
 
-    impl_type![
-        byte::<u8>(get_u8, put_u8),
-        shortint::<i16>(get_i16, put_i16),
-        int::<i32>(get_i32, put_i32),
-    ];
+/// A column definition.
+#[derive(Debug)]
+pub struct Column {
+    pub name: String,
+    pub ty: TypeId,
+}
+
+/// The in-memory database catalog, which contains
+#[derive(Debug)]
+pub struct Catalog {
+    entries: Vec<Catalog>,
+}
+
+/// A database's object definition, which contains high-level information that
+/// describes the database object.
+#[derive(Debug)]
+pub struct Object {
+    /// The object's type (e.g. a table, an index, etc).
+    ty: ObjectType,
+    /// The ID of the first page that stores the actual records.
+    page: PageId,
+    /// The object name (e.g. the table name as per the user's definition).
+    name: String,
+}
+
+/// An [`Object`] type.
+#[derive(Debug, Copy, Clone)]
+pub enum ObjectType {
+    Table = 0xA,
+    Index = 0xB,
 }
