@@ -88,12 +88,12 @@ impl Page for FirstPage {
 pub struct HeapPage {
     id: PageId,
     next_id: PageId,
-    ty: HeapPageKind,
+    ty: HeapPageType,
 }
 
 /// A [`HeapPage`] type.
 #[derive(Debug)]
-pub enum HeapPageKind {
+pub enum HeapPageType {
     WithSchema(SchemaPageData),
     Normal,
 }
