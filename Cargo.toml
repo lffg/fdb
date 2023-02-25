@@ -9,3 +9,5 @@ edition = "2021"
 [dependencies]
 buff = { path = "./buff" }
 thiserror = "1.0.38"
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
