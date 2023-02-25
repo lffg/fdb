@@ -4,8 +4,6 @@ use std::{
     path::Path,
 };
 
-use bytes::{Bytes, BytesMut};
-
 use crate::{
     config::PAGE_SIZE,
     error::{DbResult, Error},
@@ -33,16 +31,10 @@ impl DiskManager {
     /// Reads the contents of the page at the offset from the given page id,
     /// writing them at the provided buffer.
     ///
-    /// # Errors
-    ///
-    /// - If the offset provided by the given page id exceeds the inner file's
-    ///   length.
-    /// - If one of the I/O operations fails.
-    ///
     /// # Panics
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
-    pub fn read_page(&mut self, page_id: PageId, buf: &mut BytesMut) -> DbResult<()> {
+    pub fn read_page(&mut self, page_id: PageId, buf: &mut [u8]) -> DbResult<()> {
         assert_eq!(buf.len() as u64, PAGE_SIZE);
 
         let size = self.file.metadata()?.len();
@@ -53,7 +45,7 @@ impl DiskManager {
 
         self.file.seek(SeekFrom::Start(page_id.offset()))?;
 
-        if let Err(error) = self.file.read_exact(&mut buf[..]) {
+        if let Err(error) = self.file.read_exact(buf) {
             if error.kind() == io::ErrorKind::UnexpectedEof {
                 Err(Error::ReadIncompletePage(page_id))
             } else {
@@ -67,14 +59,10 @@ impl DiskManager {
     /// Writes the contents of the provided buffer at the offset from the given
     /// page id.
     ///
-    /// # Errors
-    ///
-    /// - Fails if one of the I/O operations fails.
-    ///
     /// # Panics
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
-    pub fn write_page(&mut self, page_id: PageId, buf: &Bytes) -> DbResult<()> {
+    pub fn write_page(&mut self, page_id: PageId, buf: &[u8]) -> DbResult<()> {
         assert_eq!(buf.len() as u64, PAGE_SIZE);
 
         self.file.seek(SeekFrom::Start(page_id.offset()))?;

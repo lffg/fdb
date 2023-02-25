@@ -1,4 +1,4 @@
-use bytes::BytesMut;
+use buff::Buff;
 
 use crate::{
     config::PAGE_SIZE,
@@ -28,11 +28,22 @@ impl Pager {
     /// Given a page ID, fetches it from the disk.
     pub fn load<P: Page>(&mut self, id: PageId) -> DbResult<P> {
         // TODO: Use a buffer pool.
-        let mut buf = BytesMut::zeroed(PAGE_SIZE as usize);
+        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = Buff::new(&mut *buf);
 
-        self.dm.read_page(id, &mut buf)?;
-        let page = P::deserialize(&buf)?;
+        self.dm.read_page(id, buf.get_mut())?;
+        let page = P::deserialize(&mut buf)?;
 
         Ok(page)
+    }
+
+    /// Immediately writes the given page on the disk.
+    pub fn write_flush(&mut self, page: &dyn Page) -> DbResult<()> {
+        // TODO: Use a buffer pool.
+        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = Buff::new(&mut *buf);
+
+        page.serialize(&mut buf);
+        self.dm.write_page(page.id(), buf.get())
     }
 }

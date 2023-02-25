@@ -16,6 +16,8 @@ mod page;
 mod disk_manager;
 mod pager;
 
+mod ioutil;
+
 fn main() -> DbResult<()> {
     let disk_manager = DiskManager::new(Path::new("ignore/my-db"))?;
     let mut pager = Pager::new(disk_manager);
@@ -32,7 +34,9 @@ fn load_first_page(pager: &mut Pager) -> DbResult<FirstPage> {
     match pager.load(id) {
         Ok(first_page) => Ok(first_page),
         Err(Error::PageOutOfBounds(_)) => {
-            todo!("bootstrap first page");
+            let first_page = FirstPage::default();
+            pager.write_flush(&first_page)?;
+            Ok(first_page)
         }
         Err(Error::ReadIncompletePage(_)) => {
             panic!("corrupt database file");
