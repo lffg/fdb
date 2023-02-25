@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use buff::Buff;
 
-use crate::{catalog, config::PAGE_SIZE, error::DbResult, ioutil::PageIdBuffExt};
+use crate::{catalog, config::PAGE_SIZE, error::DbResult, ioutil::BuffExt};
 
 /// A contract that represents an in-memory page.
 ///

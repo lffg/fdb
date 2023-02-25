@@ -1,8 +1,10 @@
+use std::num::NonZeroU32;
+
 use buff::Buff;
 
 use crate::page::PageId;
 
-pub trait PageIdBuffExt {
+pub trait BuffExt {
     /// Reads an optional page id. If the underlying data is 0, `None` is
     /// returned.
     fn read_page(&mut self) -> Option<PageId>;
@@ -11,19 +13,17 @@ pub trait PageIdBuffExt {
     fn write_page(&mut self, page: Option<PageId>);
 }
 
-impl PageIdBuffExt for Buff<'_> {
+impl BuffExt for Buff<'_> {
     /// Reads an optional page id. If the underlying data is 0, `None` is
     /// returned.
     fn read_page(&mut self) -> Option<PageId> {
-        match self.read() {
-            0_u32 => None,
-            num => Some(PageId::new(num.try_into().expect("non-zero page id"))),
-        }
+        let num = self.read();
+        NonZeroU32::new(num).map(PageId::new)
     }
 
     /// Writes an optional page id. If `None` is provided, 0 is written.
     fn write_page(&mut self, page: Option<PageId>) {
         let num = page.map(PageId::get).unwrap_or(0);
-        self.write(num)
+        self.write(num);
     }
 }
