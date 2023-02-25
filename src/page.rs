@@ -2,12 +2,7 @@ use std::num::NonZeroU32;
 
 use buff::Buff;
 
-use crate::{
-    catalog,
-    config::PAGE_SIZE,
-    error::{DbResult, Error},
-    ioutil::BuffExt,
-};
+use crate::{config::PAGE_SIZE, error::DbResult};
 
 // TODO: `free_list`.
 pub mod first;
@@ -65,5 +60,30 @@ impl PageId {
     #[inline]
     pub fn offset(self) -> u64 {
         (self.0.get() as u64 - 1) * PAGE_SIZE
+    }
+}
+
+/// Represents a state in which a page may be returned (e.g. by the
+/// [`crate::Pager`]).
+pub enum PageState<P> {
+    New(P),
+    Existing(P),
+}
+
+impl<P> PageState<P> {
+    // Uncomment when needed
+    // =====================
+    // /// Returns the underlying page.
+    // pub fn into_inner(self) -> P {
+    //     match self {
+    //         PageState::New(inner) | PageState::Existing(inner) => inner,
+    //     }
+    // }
+
+    /// Returns a reference to the underlying page.
+    pub fn get(&self) -> &P {
+        match &self {
+            PageState::New(inner) | PageState::Existing(inner) => inner,
+        }
     }
 }

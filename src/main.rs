@@ -5,7 +5,7 @@ use tracing::info;
 use crate::{
     disk_manager::DiskManager,
     error::{DbResult, Error},
-    page::{first::FirstPage, PageId},
+    page::{first::FirstPage, PageId, PageState},
     pager::Pager,
 };
 
@@ -26,23 +26,35 @@ fn main() -> DbResult<()> {
     let disk_manager = DiskManager::new(Path::new("ignore/my-db"))?;
     let mut pager = Pager::new(disk_manager);
 
-    let first_page = load_first_page(&mut pager)?;
-    dbg!(first_page);
+    let mut first_page = load_first_page(&mut pager)?;
+    if let PageState::New(first_page) = &mut first_page {
+        define_test_catalog(&mut pager, first_page)?;
+    };
+    dbg!(first_page.get());
 
     Ok(())
 }
 
+// TODO: While this database doesn't support user-defined tables (aka. `CREATE
+// TABLE`), during bootstrap, one allocates a specific catalog to use for
+// testing purposes.
+fn define_test_catalog(_pager: &mut Pager, _first_page: &mut FirstPage) -> DbResult<()> {
+    info!("defining test catalog");
+    tracing::warn!("todo");
+    Ok(())
+}
+
 /// Loads the first page, or bootstraps it in the case of first access.
-fn load_first_page(pager: &mut Pager) -> DbResult<FirstPage> {
+fn load_first_page(pager: &mut Pager) -> DbResult<PageState<FirstPage>> {
     let id = PageId::new(1.try_into().unwrap());
 
     match pager.load(id) {
-        Ok(first_page) => Ok(first_page),
+        Ok(first_page) => Ok(PageState::Existing(first_page)),
         Err(Error::PageOutOfBounds(_)) => {
             info!("first access; bootstrapping first page");
             let first_page = FirstPage::default();
             pager.write_flush(&first_page)?;
-            Ok(first_page)
+            Ok(PageState::New(first_page))
         }
         Err(Error::ReadIncompletePage(_)) => {
             panic!("corrupt database file");
