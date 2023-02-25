@@ -5,7 +5,13 @@ use tracing::info;
 use crate::{
     disk_manager::DiskManager,
     error::{DbResult, Error},
-    page::{catalog_data::CatalogData, first::FirstPage, PageId, PageState},
+    page::{
+        catalog_data::CatalogData,
+        first::FirstPage,
+        heap::{HeapPage, HeapPageType},
+        schema_data::SchemaData,
+        PageId, PageState,
+    },
     pager::Pager,
 };
 
@@ -30,7 +36,13 @@ fn main() -> DbResult<()> {
     if let PageState::New(first_page) = &mut first_page {
         define_test_catalog(&mut pager, first_page)?;
     };
-    dbg!(first_page.get());
+    // TODO: Load full object catalog.
+
+    let mut second_page: HeapPage = pager.load(PageId::new_u32(2))?;
+
+    println!("First page:\n{:#?}\n", first_page.get());
+    second_page.bytes = vec![]; // hide for print below.
+    println!("Second page:\n{second_page:#?}\n");
 
     Ok(())
 }
@@ -40,17 +52,40 @@ fn main() -> DbResult<()> {
 // testing purposes.
 fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResult<()> {
     info!("defining test catalog");
+
+    let heap_page_id = PageId::new_u32(2);
+
     first_page.catalog = CatalogData {
         next_id: None,
         object_count: 1,
         objects: vec![catalog::Object {
             ty: catalog::ObjectType::Table,
-            page: PageId::new(2.try_into().unwrap()),
+            page_id: heap_page_id,
             name: "chess_matches".into(),
         }],
     };
     pager.write_flush(first_page)?;
-    tracing::warn!("todo finish this");
+
+    let first_heap_page = HeapPage {
+        id: heap_page_id,
+        next_page_id: None,
+        ty: HeapPageType::FirstWithSchema(SchemaData {
+            column_count: 2,
+            columns: vec![
+                catalog::Column {
+                    ty: catalog::TypeId::Int,
+                    name: "id".into(),
+                },
+                catalog::Column {
+                    ty: catalog::TypeId::Int,
+                    name: "age".into(),
+                },
+            ],
+        }),
+        bytes: b"hello, world! (i am not yet structured)".to_vec(),
+    };
+    pager.write_flush(&first_heap_page)?;
+
     Ok(())
 }
 

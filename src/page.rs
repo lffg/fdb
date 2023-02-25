@@ -4,6 +4,7 @@ use crate::{config::PAGE_SIZE, ioutil::Serde};
 
 // TODO: `free_list`.
 pub mod first;
+pub mod heap;
 
 pub mod catalog_data;
 pub mod main_header_data;
@@ -38,6 +39,13 @@ impl PageId {
     /// Constructs a new [`PageId`] using the given page number.
     pub fn new(page_number: NonZeroU32) -> Self {
         PageId(page_number)
+    }
+
+    /// Constructs a new [`PageId`] using the given page number.
+    ///
+    /// Panics if received zero.
+    pub fn new_u32(page_number: u32) -> Self {
+        Self::new(page_number.try_into().unwrap())
     }
 
     /// Returns the underlying page id.

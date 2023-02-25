@@ -1,4 +1,5 @@
 use crate::{
+    config::IDENTIFIER_SIZE,
     error::{DbResult, Error},
     ioutil::{BuffExt, Serde},
     page::PageId,
@@ -7,20 +8,49 @@ use crate::{
 /// `fdb` possible value types.
 #[derive(Copy, Clone, Debug)]
 pub enum TypeId {
-    _Bool,
-    _Byte,
-    _ShortInt,
-    _Int,
-    _BigInt,
-    _DateTime,
-    _Text,
-    _Blob,
+    Bool = 0,
+    Byte = 1,
+    ShortInt = 2,
+    Int = 3,
+    BigInt = 4,
+    DateTime = 5,
+    Text = 6,
+    Blob = 7,
 }
 
-/*
+impl Serde for TypeId {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        buf.write(self.discriminant());
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let tag: u8 = buf.read();
+        match tag {
+            0 => Ok(TypeId::Bool),
+            1 => Ok(TypeId::Byte),
+            2 => Ok(TypeId::ShortInt),
+            3 => Ok(TypeId::Int),
+            4 => Ok(TypeId::BigInt),
+            5 => Ok(TypeId::DateTime),
+            6 => Ok(TypeId::Text),
+            7 => Ok(TypeId::Blob),
+            _ => Err(Error::CorruptedTypeTag),
+        }
+    }
+}
+
 impl TypeId {
+    /// Returns the tag associated with the `HeapPageId`.
+    pub const fn discriminant(&self) -> u8 {
+        *self as u8
+    }
+
     /// Returns the size (in bytes) for the given type.
-    pub const fn size(self) -> u8 {
+    pub const fn _size(self) -> u8 {
         match self {
             TypeId::Bool | TypeId::Byte => 1,
             TypeId::ShortInt => 2,
@@ -31,13 +61,34 @@ impl TypeId {
         }
     }
 }
-*/
 
 /// A column definition.
 #[derive(Debug)]
 pub struct Column {
-    pub name: String,
+    /// The column value type.
     pub ty: TypeId,
+    /// The column identifier.
+    ///
+    /// The column name may have at most 64 bytes.
+    pub name: String,
+}
+
+impl Serde for Column {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        self.ty.serialize(buf)?;
+        buf.write_fixed_size_string(IDENTIFIER_SIZE, &self.name, "column name")?;
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Column {
+            ty: TypeId::deserialize(buf)?,
+            name: buf.read_fixed_size_string(IDENTIFIER_SIZE, "column name")?,
+        })
+    }
 }
 
 /// A database's object definition, which contains high-level information that
@@ -47,7 +98,7 @@ pub struct Object {
     /// The object's type (e.g. a table, an index, etc).
     pub ty: ObjectType,
     /// The ID of the first page that stores the actual records.
-    pub page: PageId,
+    pub page_id: PageId,
     /// The object name (e.g. the table name as per the user's definition).
     ///
     /// The object name (i.e., a table name or an index name) may have at most
@@ -57,10 +108,9 @@ pub struct Object {
 
 impl Serde for Object {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
-        let Object { ty, page, name } = self;
-        ty.serialize(buf)?;
-        buf.write_page_id(Some(*page));
-        buf.write_fixed_size_string(64, name, ty.name())?;
+        self.ty.serialize(buf)?;
+        buf.write_page_id(Some(self.page_id));
+        buf.write_fixed_size_string(IDENTIFIER_SIZE, &self.name, self.ty.name())?;
         Ok(())
     }
 
@@ -71,8 +121,8 @@ impl Serde for Object {
         let ty = ObjectType::deserialize(buf)?;
         Ok(Object {
             ty,
-            page: buf.read_page_id().expect("non-null page id"),
-            name: buf.read_fixed_size_string(64, ty.name())?,
+            page_id: buf.read_page_id().expect("non-null page id"),
+            name: buf.read_fixed_size_string(IDENTIFIER_SIZE, ty.name())?,
         })
     }
 }
@@ -84,20 +134,9 @@ pub enum ObjectType {
     Index = 0xB,
 }
 
-impl ObjectType {
-    /// Returns the name of the object type.
-    pub const fn name(&self) -> &'static str {
-        match self {
-            ObjectType::Table => "table",
-            ObjectType::Index => "index",
-        }
-    }
-}
-
 impl Serde for ObjectType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
-        let repr = *self as u8;
-        buf.write(repr);
+        buf.write(self.discriminant());
         Ok(())
     }
 
@@ -105,11 +144,26 @@ impl Serde for ObjectType {
     where
         Self: Sized,
     {
-        let repr: u8 = buf.read();
-        match repr {
+        let tag: u8 = buf.read();
+        match tag {
             0xA => Ok(ObjectType::Table),
             0xB => Ok(ObjectType::Index),
-            _ => Err(Error::CorruptedObjectType),
+            _ => Err(Error::CorruptedObjectTypeTag),
+        }
+    }
+}
+
+impl ObjectType {
+    /// Returns the tag associated with the `HeapPageId`.
+    pub const fn discriminant(&self) -> u8 {
+        *self as u8
+    }
+
+    /// Returns the name of the object type.
+    pub const fn name(&self) -> &'static str {
+        match self {
+            ObjectType::Table => "table",
+            ObjectType::Index => "index",
         }
     }
 }

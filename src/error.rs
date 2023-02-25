@@ -18,9 +18,17 @@ pub enum Error {
     #[error("corrupted header: {0}")]
     CorruptedHeader(&'static str),
 
-    /// Invalid object type.
-    #[error("corrupted object type")]
-    CorruptedObjectType,
+    /// Invalid object type tag.
+    #[error("corrupted object type tag")]
+    CorruptedObjectTypeTag,
+
+    /// Invalid type tag.
+    #[error("corrupted type tag")]
+    CorruptedTypeTag,
+
+    /// Invalid heap page type tag.
+    #[error("corrupted heap page type tag")]
+    CorruptedHeapPageTypeTag,
 
     /// UTF-8 error.
     #[error("utf-8 error while decoding string for `{0}`")]
