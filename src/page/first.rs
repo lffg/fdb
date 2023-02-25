@@ -34,7 +34,7 @@ impl Page for FirstPage {
             buf.write_slice(b"fdb format");
             buf.write(header.file_format_version);
             buf.write(header.page_count);
-            buf.write_page(header.first_free_list_page_id);
+            buf.write_page_id(header.first_free_list_page_id);
 
             let rest = 98 - buf.offset();
             buf.write_bytes(rest, 0);
@@ -51,7 +51,7 @@ impl Page for FirstPage {
             let header = MainHeaderData {
                 file_format_version: buf.read(),
                 page_count: buf.read(),
-                first_free_list_page_id: buf.read_page(),
+                first_free_list_page_id: buf.read_page_id(),
             };
             buf.seek(98);
             buf.read_verify_eq::<2>(*br"\0")
@@ -61,6 +61,7 @@ impl Page for FirstPage {
         })?;
         Ok(FirstPage {
             header,
+            // TODO: Read catalog.
             ..Default::default()
         })
     }
