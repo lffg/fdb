@@ -1,4 +1,4 @@
-use std::io;
+use std::{borrow::Cow, io};
 
 use crate::page::PageId;
 
@@ -17,6 +17,22 @@ pub enum Error {
     /// Corrupted header.
     #[error("corrupted header: {0}")]
     CorruptedHeader(&'static str),
+
+    /// Invalid object type.
+    #[error("corrupted object type")]
+    CorruptedObjectType,
+
+    /// UTF-8 error.
+    #[error("utf-8 error while decoding string for `{0}`")]
+    CorruptedUtf8(Cow<'static, str>),
+
+    /// Invalid size error.
+    #[error("invalid size for `{name}`: expected at most {expected} bytes, but found {actual}")]
+    SizeGreaterThanExpected {
+        name: Cow<'static, str>,
+        expected: usize,
+        actual: usize,
+    },
 
     /// An generic IO error.
     #[error("io error: {0}")]

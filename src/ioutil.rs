@@ -1,8 +1,11 @@
-use std::num::NonZeroU32;
+use std::{borrow::Cow, num::NonZeroU32};
 
 use buff::Buff;
 
-use crate::{error::DbResult, page::PageId};
+use crate::{
+    error::{DbResult, Error},
+    page::PageId,
+};
 
 /// Defines a common serialization/deserialization interface based in the
 /// [`Buff`] type.
@@ -34,6 +37,21 @@ pub trait BuffExt {
 
     /// Reads `N` bytes and compares it to the given slice.
     fn read_verify_eq<const N: usize>(&mut self, expected: [u8; N]) -> Result<(), ()>;
+
+    /// Reads a fixed-size UTF-8 string.
+    fn read_fixed_size_string(
+        &mut self,
+        size: usize,
+        value_name: impl Into<Cow<'static, str>>,
+    ) -> DbResult<String>;
+
+    /// Writes a fixed-size UTF-8 string.
+    fn write_fixed_size_string(
+        &mut self,
+        size: usize,
+        str: &str,
+        value_name: impl Into<Cow<'static, str>>,
+    ) -> DbResult<()>;
 }
 
 impl BuffExt for Buff<'_> {
@@ -56,5 +74,41 @@ impl BuffExt for Buff<'_> {
         } else {
             Err(())
         }
+    }
+
+    fn read_fixed_size_string(
+        &mut self,
+        size: usize,
+        value_name: impl Into<Cow<'static, str>>,
+    ) -> DbResult<String> {
+        let mut buf = vec![0; size];
+        self.read_slice(&mut buf);
+
+        let hi = buf.iter().position(|byte| *byte == 0).unwrap_or(buf.len());
+        buf.truncate(hi);
+
+        let string = String::from_utf8(buf).map_err(|_| Error::CorruptedUtf8(value_name.into()))?;
+        Ok(string)
+    }
+
+    fn write_fixed_size_string(
+        &mut self,
+        size: usize,
+        str: &str,
+        value_name: impl Into<Cow<'static, str>>,
+    ) -> DbResult<()> {
+        if str.len() > size {
+            return Err(Error::SizeGreaterThanExpected {
+                name: value_name.into(),
+                expected: size,
+                actual: str.len(),
+            });
+        }
+        self.scoped_exact(size, |buf| {
+            let bytes = str.as_bytes();
+            buf.write_slice(bytes);
+            buf.write_bytes(size - bytes.len(), 0);
+        });
+        Ok(())
     }
 }
