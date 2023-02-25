@@ -5,7 +5,7 @@ use tracing::info;
 use crate::{
     disk_manager::DiskManager,
     error::{DbResult, Error},
-    page::{FirstPage, PageId},
+    page::{first::FirstPage, PageId},
     pager::Pager,
 };
 

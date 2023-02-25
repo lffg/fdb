@@ -9,6 +9,13 @@ use crate::{
     ioutil::BuffExt,
 };
 
+// TODO: `free_list`.
+pub mod first;
+
+pub mod catalog_data;
+pub mod main_header_data;
+pub mod schema_data;
+
 /// A contract that represents an in-memory page.
 ///
 /// Since the database engine can interpret the "raw page" sequence of bytes,
@@ -59,134 +66,4 @@ impl PageId {
     pub fn offset(self) -> u64 {
         (self.0.get() as u64 - 1) * PAGE_SIZE
     }
-}
-
-/// The first page, which contains the database header and the "heap page" that
-/// contains the database schema tuples.
-///
-/// The first 100 bytes are reserved for the header (although currently most of
-/// it remains unused). The next [`PAGE_SIZE`] - 100 bytes are used to simulate
-/// an usual [`HeapPage`].
-///
-/// The first 10 bytes are reserved for the ASCII string `"fdb format"`.
-#[derive(Debug)]
-pub struct FirstPage {
-    /// The database header.
-    header: DatabaseHeaderPageData,
-    /// The database catalog that follows the 100-byte database header.
-    catalog: CatalogPageData,
-}
-
-impl Page for FirstPage {
-    fn id(&self) -> PageId {
-        PageId::new(1.try_into().unwrap())
-    }
-
-    fn serialize(&self, buf: &mut Buff<'_>) {
-        buf.scoped_exact(100, |buf| {
-            let header = &self.header;
-
-            buf.write_slice(b"fdb format");
-            buf.write(header.file_format_version);
-            buf.write(header.page_count);
-            buf.write_page(header.first_free_list_page_id);
-
-            let rest = 98 - buf.offset();
-            buf.write_bytes(rest, 0);
-            buf.write_slice(br"\0");
-        });
-
-        // TODO: Write catalog.
-    }
-
-    fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self> {
-        let header = buf.scoped_exact(100, |buf| {
-            buf.read_verify_eq::<10>(*b"fdb format")
-                .map_err(|_| Error::CorruptedHeader("start"))?; // header sig
-            let header = DatabaseHeaderPageData {
-                file_format_version: buf.read(),
-                page_count: buf.read(),
-                first_free_list_page_id: buf.read_page(),
-            };
-            buf.seek(98);
-            buf.read_verify_eq::<2>(*br"\0")
-                .map_err(|_| Error::CorruptedHeader("end"))?; // finish header sig
-
-            Ok::<_, Error>(header)
-        })?;
-        Ok(FirstPage {
-            header,
-            ..Default::default()
-        })
-    }
-}
-
-impl Default for FirstPage {
-    fn default() -> Self {
-        Self {
-            header: DatabaseHeaderPageData {
-                file_format_version: 0,
-                page_count: 0,
-                first_free_list_page_id: None,
-            },
-            catalog: CatalogPageData {
-                next_id: None,
-                object_count: 0,
-                objects: vec![],
-            },
-        }
-    }
-}
-
-/// A heap page.
-#[derive(Debug)]
-pub struct HeapPage {
-    id: PageId,
-    next_id: PageId,
-    ty: HeapPageType,
-}
-
-/// A [`HeapPage`] type.
-#[derive(Debug)]
-pub enum HeapPageType {
-    WithSchema(SchemaPageData),
-    Normal,
-}
-
-/// TODO: Implement this type of page.
-#[allow(unused)]
-#[derive(Debug)]
-pub struct FreeListPage {
-    id: PageId,
-}
-
-/// The database header.
-#[derive(Debug)]
-pub struct DatabaseHeaderPageData {
-    /// The file format version. Currently, such a version is defined as `0`.
-    file_format_version: u8,
-    /// The total number of pages being used in the file.
-    page_count: u32,
-    /// The ID of the first free list page.
-    first_free_list_page_id: Option<PageId>,
-}
-
-/// A catalog page wraps definitions of database objects.
-///
-/// The first catalog page is stored within the [`FirstPage`]. If the database
-/// catalog can't fit in there, other catalog pages may be stored in heap pages;
-/// hence, the `next_id` field.
-#[derive(Debug)]
-pub struct CatalogPageData {
-    // TODO(P0): See if this representation fits in the slotted page approach.
-    // It MUST since HEAP PAGES will work using an slotted page approach.
-    next_id: Option<PageId>,
-    object_count: u16,
-    objects: Vec<catalog::Object>,
-}
-
-#[derive(Debug)]
-pub struct SchemaPageData {
-    column_count: u16,
-    columns: Vec<catalog::Column>,
 }

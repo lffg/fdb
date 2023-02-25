@@ -7,9 +7,9 @@ use crate::{
     page::{Page, PageId},
 };
 
-/// The pager, also known as buffer pool manager, is a central part of the
-/// database storage engine, being responsible for deciding when and which pages
-/// are to be loaded and flushed to the disk.
+/// The pager, also known as buffer pool manager or as page cache, is a central
+/// part of the database storage engine, being responsible for deciding when and
+/// which pages are to be loaded and flushed to the disk.
 ///
 /// It also handles page caching and such a cache's eviction policies, which is
 /// important to improve the database efficiency. However, this functionality is
