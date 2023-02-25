@@ -104,13 +104,14 @@ impl<'a> Buff<'a> {
     ///
     /// Panics if the scope didn't wrote `count` bytes. Notice that the panic
     /// message shall not be considered stable.
-    pub fn scoped_exact<F>(&mut self, count: usize, scope: F)
+    pub fn scoped_exact<F, R>(&mut self, count: usize, scope: F) -> R
     where
-        F: Fn(&mut Self),
+        F: Fn(&mut Self) -> R,
     {
         let start = self.offset;
-        scope(self);
+        let ret = scope(self);
         assert_eq!(self.offset - start, count);
+        ret
     }
 }
 
