@@ -29,7 +29,7 @@ impl Page for FirstPage {
 }
 
 impl Serde for FirstPage {
-    fn serialize(&self, buf: &mut Buff<'_>) {
+    fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         buf.scoped_exact(100, |buf| {
             let header = &self.header;
 
@@ -44,6 +44,8 @@ impl Serde for FirstPage {
         });
 
         // TODO: Write catalog.
+
+        Ok(())
     }
 
     fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self> {

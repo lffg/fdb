@@ -43,7 +43,7 @@ impl Pager {
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         let mut buf = Buff::new(&mut *buf);
 
-        page.serialize(&mut buf);
+        page.serialize(&mut buf)?;
         self.dm.write_page(page.id(), buf.get())
     }
 }

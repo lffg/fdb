@@ -14,9 +14,7 @@ use crate::{
 /// [serde](https://serde.rs) crate. :P
 pub trait Serde {
     /// Serializes the page.
-    ///
-    /// This operation should be infallible.
-    fn serialize(&self, buf: &mut Buff<'_>);
+    fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()>;
 
     /// Deserializes the page.
     // TODO: Maybe use an associated type to encode the error.
