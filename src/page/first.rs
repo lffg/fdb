@@ -1,8 +1,8 @@
 use buff::Buff;
 
 use crate::{
-    error::{DbResult, Error},
-    ioutil::{BuffExt, Serde},
+    error::DbResult,
+    ioutil::Serde,
     page::{catalog_data::CatalogData, main_header_data::MainHeaderData, Page, PageId},
 };
 
@@ -30,41 +30,14 @@ impl Page for FirstPage {
 
 impl Serde for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
-        buf.scoped_exact(100, |buf| {
-            let header = &self.header;
-
-            buf.write_slice(b"fdb format");
-            buf.write(header.file_format_version);
-            buf.write(header.page_count);
-            buf.write_page_id(header.first_free_list_page_id);
-
-            let rest = 98 - buf.offset();
-            buf.write_bytes(rest, 0);
-            buf.write_slice(br"\0");
-        });
-
+        self.header.serialize(buf)?;
         self.catalog.serialize(buf)?;
-
         Ok(())
     }
 
     fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self> {
-        let header = buf.scoped_exact(100, |buf| {
-            buf.read_verify_eq::<10>(*b"fdb format")
-                .map_err(|_| Error::CorruptedHeader("start"))?; // header sig
-            let header = MainHeaderData {
-                file_format_version: buf.read(),
-                page_count: buf.read(),
-                first_free_list_page_id: buf.read_page_id(),
-            };
-            buf.seek(98);
-            buf.read_verify_eq::<2>(*br"\0")
-                .map_err(|_| Error::CorruptedHeader("end"))?; // finish header sig
-
-            Ok::<_, Error>(header)
-        })?;
         Ok(FirstPage {
-            header,
+            header: MainHeaderData::deserialize(buf)?,
             catalog: CatalogData::deserialize(buf)?,
         })
     }
