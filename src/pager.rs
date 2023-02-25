@@ -19,6 +19,7 @@ pub struct Pager {
     dm: DiskManager,
 }
 
+// TODO: Implement page allocator.
 impl Pager {
     /// Creates a new pager.
     pub fn new(disk_manager: DiskManager) -> Self {

@@ -7,9 +7,9 @@ use crate::{
 
 /// A catalog page wraps definitions of database objects.
 ///
-/// The first catalog page is stored within the [`FirstPage`]. If the database
-/// catalog can't fit in there, other catalog pages may be stored in heap pages;
-/// hence, the `next_id` field.
+/// The first catalog page is stored in the `FirstPage`. If the database catalog
+/// can't fit in there, other catalog pages may be stored in heap pages; hence,
+/// the `next_id` field.
 #[derive(Debug)]
 pub struct CatalogData {
     // TODO(P0): See if this representation fits in the slotted page approach.

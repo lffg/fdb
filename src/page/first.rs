@@ -10,8 +10,8 @@ use crate::{
 /// contains the database schema tuples.
 ///
 /// The first 100 bytes are reserved for the header (although currently most of
-/// it remains unused). The next [`PAGE_SIZE`] - 100 bytes are used to simulate
-/// an usual [`HeapPage`].
+/// it remains unused). The next `PAGE_SIZE - 100` bytes are used to simulate an
+/// usual heap page.
 ///
 /// The first 10 bytes are reserved for the ASCII string `"fdb format"`.
 #[derive(Debug)]
