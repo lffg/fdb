@@ -2,7 +2,7 @@ use buff::Buff;
 
 use crate::{
     error::{DbResult, Error},
-    ioutil::BuffExt,
+    ioutil::{BuffExt, Serde},
     page::{catalog_data::CatalogData, main_header_data::MainHeaderData, Page, PageId},
 };
 
@@ -26,7 +26,9 @@ impl Page for FirstPage {
     fn id(&self) -> PageId {
         PageId::new(1.try_into().unwrap())
     }
+}
 
+impl Serde for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) {
         buf.scoped_exact(100, |buf| {
             let header = &self.header;

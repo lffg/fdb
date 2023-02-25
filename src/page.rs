@@ -1,8 +1,6 @@
 use std::num::NonZeroU32;
 
-use buff::Buff;
-
-use crate::{config::PAGE_SIZE, error::DbResult};
+use crate::{config::PAGE_SIZE, ioutil::Serde};
 
 // TODO: `free_list`.
 pub mod first;
@@ -18,21 +16,12 @@ pub mod schema_data;
 /// different use-cases, all pages share some common functionality. For example,
 /// all of them must expose an [`PageId`], be serializable and deserializable,
 /// etc.
-pub trait Page {
+///
+/// All `Page` implementation must also implement [`Serde`], so that they may be
+/// serialized and deserialized.
+pub trait Page: Serde {
     /// Returns the corresponding [`PageId`].
     fn id(&self) -> PageId;
-
-    // TODO: Maybe extract these next two to a "serialize/deserialize" trait.
-    /// Serializes the page.
-    ///
-    /// This operation shouldn't fail.
-    fn serialize(&self, buf: &mut Buff<'_>);
-
-    /// Deserializes the page.
-    // TODO: Maybe use an associated type to encode the error.
-    fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self>
-    where
-        Self: Sized;
 }
 
 /// A wrapper that represents a page id.
