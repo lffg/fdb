@@ -43,7 +43,7 @@ impl Serde for FirstPage {
             buf.write_slice(br"\0");
         });
 
-        // TODO: Write catalog.
+        self.catalog.serialize(buf)?;
 
         Ok(())
     }
@@ -65,8 +65,7 @@ impl Serde for FirstPage {
         })?;
         Ok(FirstPage {
             header,
-            // TODO: Read catalog.
-            ..Default::default()
+            catalog: CatalogData::deserialize(buf)?,
         })
     }
 }

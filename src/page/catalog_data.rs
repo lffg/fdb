@@ -1,4 +1,9 @@
-use crate::{catalog, page::PageId};
+use crate::{
+    catalog,
+    error::DbResult,
+    ioutil::{BuffExt, Serde},
+    page::PageId,
+};
 
 /// A catalog page wraps definitions of database objects.
 ///
@@ -12,4 +17,31 @@ pub struct CatalogData {
     pub next_id: Option<PageId>,
     pub object_count: u16,
     pub objects: Vec<catalog::Object>,
+}
+
+impl Serde for CatalogData {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        buf.write_page_id(self.next_id);
+        buf.write(self.object_count);
+        for object in &self.objects {
+            object.serialize(buf)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let next_id = buf.read_page_id();
+        let object_count: u16 = buf.read();
+        let objects: Vec<_> = (0..object_count)
+            .map(|_| catalog::Object::deserialize(buf))
+            .collect::<Result<_, _>>()?;
+        Ok(CatalogData {
+            next_id,
+            object_count,
+            objects,
+        })
+    }
 }
