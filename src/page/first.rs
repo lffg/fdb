@@ -17,9 +17,9 @@ use crate::{
 #[derive(Debug)]
 pub struct FirstPage {
     /// The database header.
-    header: MainHeaderData,
+    pub header: MainHeaderData,
     /// The database catalog that follows the 100-byte database header.
-    catalog: CatalogData,
+    pub catalog: CatalogData,
 }
 
 impl Page for FirstPage {

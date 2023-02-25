@@ -5,7 +5,7 @@ use tracing::info;
 use crate::{
     disk_manager::DiskManager,
     error::{DbResult, Error},
-    page::{first::FirstPage, PageId, PageState},
+    page::{catalog_data::CatalogData, first::FirstPage, PageId, PageState},
     pager::Pager,
 };
 
@@ -38,9 +38,19 @@ fn main() -> DbResult<()> {
 // TODO: While this database doesn't support user-defined tables (aka. `CREATE
 // TABLE`), during bootstrap, one allocates a specific catalog to use for
 // testing purposes.
-fn define_test_catalog(_pager: &mut Pager, _first_page: &mut FirstPage) -> DbResult<()> {
+fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResult<()> {
     info!("defining test catalog");
-    tracing::warn!("todo");
+    first_page.catalog = CatalogData {
+        next_id: None,
+        object_count: 1,
+        objects: vec![catalog::Object {
+            ty: catalog::ObjectType::Table,
+            page: PageId::new(2.try_into().unwrap()),
+            name: "chess_matches".into(),
+        }],
+    };
+    pager.write_flush(first_page)?;
+    tracing::warn!("todo finish this");
     Ok(())
 }
 

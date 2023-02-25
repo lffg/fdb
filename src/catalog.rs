@@ -60,7 +60,7 @@ impl Serde for Object {
         let Object { ty, page, name } = self;
         ty.serialize(buf)?;
         buf.write_page_id(Some(*page));
-        buf.write_fixed_size_string(6, name, ty.name())?;
+        buf.write_fixed_size_string(64, name, ty.name())?;
         Ok(())
     }
 

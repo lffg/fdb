@@ -23,6 +23,7 @@ impl Serde for CatalogData {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write_page_id(self.next_id);
         buf.write(self.object_count);
+        debug_assert_eq!(self.object_count as usize, self.objects.len());
         for object in &self.objects {
             object.serialize(buf)?;
         }
