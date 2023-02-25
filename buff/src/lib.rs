@@ -36,6 +36,11 @@ impl<'a> Buff<'a> {
         self.inner
     }
 
+    /// Returns a mutable reference to the underlying buffer.
+    pub fn get_mut(&mut self) -> &mut [u8] {
+        self.inner
+    }
+
     /// Returns the buffer capacity.
     pub fn capacity(&self) -> usize {
         self.inner.len()
