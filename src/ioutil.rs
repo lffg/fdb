@@ -10,6 +10,11 @@ use crate::{
 /// Defines a common serialization/deserialization interface based in the
 /// [`Buff`] type.
 ///
+/// During serialization, it is the caller's responsibility to ensure that the
+/// inner page has the capacity to store the object being serialized. If this
+/// contract is not upheld, `Buff`'s implementation will panic once the buffer
+/// (of `PAGE_SIZE` length) is full.
+///
 /// Besides the name inspiration, this has nothing to do with the
 /// [serde](https://serde.rs) crate. :P
 pub trait Serde {
