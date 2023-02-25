@@ -22,13 +22,18 @@ pub trait AsBytes: Sized {
 /// All `put_*` methods panic if there is not enough capacity.
 pub struct Buff<'a> {
     inner: &'a mut [u8],
-    len: usize,
+    offset: usize,
 }
 
 impl<'a> Buff<'a> {
     /// Creates a new fixed-size buffer, `Buff`.
     pub fn new(inner: &'a mut [u8]) -> Buff<'a> {
-        Buff { inner, len: 0 }
+        Buff { inner, offset: 0 }
+    }
+
+    /// Returns the underlying buffer.
+    pub fn get(&self) -> &[u8] {
+        self.inner
     }
 
     /// Returns the buffer capacity.
@@ -38,17 +43,17 @@ impl<'a> Buff<'a> {
 
     /// Returns the remaining available bytes in the buffer.
     pub fn remaining(&self) -> usize {
-        self.capacity() - self.len()
+        self.capacity() - self.offset
     }
 
-    /// Returns the buffer length.
-    pub fn len(&self) -> usize {
-        self.len
+    /// Returns the current offset.
+    pub fn offset(&self) -> usize {
+        self.offset
     }
 
-    /// Returns a view over the written portion of the inner slice.
-    pub fn get(&self) -> &[u8] {
-        &self.inner[..self.len]
+    /// Changes the underlying cursor offset position.
+    pub fn seek(&mut self, offset: usize) {
+        self.offset = offset;
     }
 
     /// Reads the type represented by [`AsBytes`].
@@ -92,14 +97,15 @@ impl<'a> Buff<'a> {
     ///
     /// # Panics
     ///
-    /// Panics if the scope didn't wrote `count` bytes.
+    /// Panics if the scope didn't wrote `count` bytes. Notice that the panic
+    /// message shall not be considered stable.
     pub fn scoped_exact<F>(&mut self, count: usize, scope: F)
     where
         F: Fn(&mut Self),
     {
-        let start = self.len;
+        let start = self.offset;
         scope(self);
-        assert_eq!(self.len - start, count);
+        assert_eq!(self.offset - start, count);
     }
 }
 
@@ -112,12 +118,12 @@ impl Buff<'_> {
     /// This method also increments `self.len` by `count`.
     #[inline(always)]
     fn slice_to(&mut self, count: usize) -> &mut [u8] {
-        let lo = self.len;
+        let lo = self.offset;
         let hi = lo + count;
         if hi > self.capacity() {
             panic!("not enough capacity for {count} more bytes");
         }
-        self.len = hi;
+        self.offset = hi;
         &mut self.inner[lo..hi]
     }
 }
@@ -125,7 +131,7 @@ impl Buff<'_> {
 impl fmt::Debug for Buff<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Buff")
-            .field("len", &self.len())
+            .field("len", &self.offset)
             .field("remaining", &self.remaining())
             .field("capacity", &self.capacity())
             .field("inner", &"<bytes>")
@@ -139,14 +145,97 @@ mod tests {
 
     #[test]
     fn test_write() {
-        let mut orig_buf = [0_u8; 8];
+        let mut orig_buf = [0_u8; 10];
+
+        let mut buf = Buff::new(&mut orig_buf);
+        assert_eq!(buf.offset(), 0);
+
+        buf.write(0x01ABCDEF_i32);
+        assert_eq!(buf.offset(), 4);
+        assert_eq!(buf.remaining(), 6);
+        assert_eq!(buf.get(), b"\x01\xAB\xCD\xEF\x00\x00\x00\x00\x00\x00");
+
+        buf.write(0x39C_u16);
+        assert_eq!(buf.offset(), 6);
+        assert_eq!(buf.remaining(), 4);
+        assert_eq!(buf.get(), b"\x01\xAB\xCD\xEF\x03\x9C\x00\x00\x00\x00");
+
+        buf.write_bytes(2, 3);
+        assert_eq!(buf.offset(), 8);
+        assert_eq!(buf.remaining(), 2);
+        assert_eq!(buf.get(), b"\x01\xAB\xCD\xEF\x03\x9C\x03\x03\x00\x00");
+
+        let data = [1, 2];
+        buf.write_slice(&data);
+        assert_eq!(buf.offset(), 10);
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.get(), b"\x01\xAB\xCD\xEF\x03\x9C\x03\x03\x01\x02");
+    }
+
+    #[test]
+    fn test_read() {
+        let mut orig_buf = *b"\x01\xAB\xCD\xEF\x03\x9C\x03\x03\x01\x02";
         let mut buf = Buff::new(&mut orig_buf);
 
-        assert_eq!(buf.len(), 0);
-        buf.write(123_u32);
-        assert_eq!(buf.len(), 4);
-        assert_eq!(buf.get(), b"");
-        buf.write(456_i32);
-        assert_eq!(buf.len(), 8);
+        let val: i32 = buf.read();
+        assert_eq!(val, 0x01ABCDEF_i32);
+        let val: u16 = buf.read();
+        assert_eq!(val, 0x39C_u16);
+
+        let mut dest = [0_u8; 4];
+        buf.read_slice(&mut dest);
+        assert_eq!(&dest, b"\x03\x03\x01\x02");
+    }
+
+    #[test]
+    #[should_panic(expected = "not enough capacity for 4 more bytes")]
+    fn test_overflow_write() {
+        let mut orig_buf = [0; 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        buf.write(16_i16);
+        buf.write(32_i32); // BAM!
+    }
+
+    #[test]
+    #[should_panic(expected = "not enough capacity for 1 more bytes")]
+    fn test_overflow_read() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        let _: i32 = buf.read();
+        let _: u8 = buf.read(); // BAM!
+    }
+
+    #[test]
+    fn test_seek() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        let a: i32 = buf.read();
+        buf.seek(0);
+        let b: i32 = buf.read();
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn scoped_exact_ok() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        buf.scoped_exact(2, |buf| {
+            let _: i16 = buf.read();
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    fn scoped_exact_panic() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        buf.scoped_exact(2, |buf| {
+            let _: i8 = buf.read();
+        });
     }
 }
