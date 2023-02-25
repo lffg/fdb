@@ -14,6 +14,10 @@ pub enum Error {
     #[error("incomplete page ({0:?})")]
     ReadIncompletePage(PageId),
 
+    /// Corrupted header.
+    #[error("corrupted header: {0}")]
+    CorruptedHeader(&'static str),
+
     /// An generic IO error.
     #[error("io error: {0}")]
     Io(#[from] io::Error),

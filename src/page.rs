@@ -2,7 +2,12 @@ use std::num::NonZeroU32;
 
 use buff::Buff;
 
-use crate::{catalog, config::PAGE_SIZE, error::DbResult, ioutil::BuffExt};
+use crate::{
+    catalog,
+    config::PAGE_SIZE,
+    error::{DbResult, Error},
+    ioutil::BuffExt,
+};
 
 /// A contract that represents an in-memory page.
 ///
@@ -86,8 +91,9 @@ impl Page for FirstPage {
             buf.write(header.page_count);
             buf.write_page(header.first_free_list_page_id);
 
-            let rest = 100 - buf.offset();
+            let rest = 98 - buf.offset();
             buf.write_bytes(rest, 0);
+            buf.write_slice(br"\0");
         });
 
         // TODO: Write catalog.
@@ -95,16 +101,19 @@ impl Page for FirstPage {
 
     fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self> {
         let header = buf.scoped_exact(100, |buf| {
-            buf.seek(10); // skip first 10 bytes, "fdb format"
+            buf.read_verify_eq::<10>(*b"fdb format")
+                .map_err(|_| Error::CorruptedHeader("start"))?; // header sig
             let header = DatabaseHeaderPageData {
                 file_format_version: buf.read(),
                 page_count: buf.read(),
                 first_free_list_page_id: buf.read_page(),
             };
-            debug_assert_eq!(buf.read::<1, u8>(), 0);
-            buf.seek(100);
-            header
-        });
+            buf.seek(98);
+            buf.read_verify_eq::<2>(*br"\0")
+                .map_err(|_| Error::CorruptedHeader("end"))?; // finish header sig
+
+            Ok::<_, Error>(header)
+        })?;
         Ok(FirstPage {
             header,
             ..Default::default()
