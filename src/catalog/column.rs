@@ -1,6 +1,5 @@
 use crate::{
     catalog::ty::TypeId,
-    config::IDENTIFIER_SIZE,
     error::DbResult,
     ioutil::{BuffExt, Serde},
 };
@@ -19,7 +18,7 @@ pub struct Column {
 impl Serde for Column {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
-        buf.write_fixed_size_string(IDENTIFIER_SIZE, &self.name, "column name")?;
+        buf.write_var_size_string(&self.name)?;
         Ok(())
     }
 
@@ -29,7 +28,7 @@ impl Serde for Column {
     {
         Ok(Column {
             ty: TypeId::deserialize(buf)?,
-            name: buf.read_fixed_size_string(IDENTIFIER_SIZE, "column name")?,
+            name: buf.read_var_size_string()?,
         })
     }
 }

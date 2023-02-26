@@ -1,6 +1,5 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
-    config::IDENTIFIER_SIZE,
     error::{DbResult, Error},
     ioutil::{BuffExt, Serde},
 };
@@ -65,7 +64,7 @@ impl Serde for Object {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         buf.write_page_id(Some(self.page_id));
-        buf.write_fixed_size_string(IDENTIFIER_SIZE, &self.name, self.ty.name())?;
+        buf.write_var_size_string(&self.name)?;
         Ok(())
     }
 
@@ -75,7 +74,7 @@ impl Serde for Object {
     {
         let ty = ObjectType::deserialize(buf)?;
         let page_id = buf.read_page_id().expect("non-null page id");
-        let name = buf.read_fixed_size_string(IDENTIFIER_SIZE, ty.name())?;
+        let name = buf.read_var_size_string()?;
         Ok(Object { ty, page_id, name })
     }
 }
@@ -122,7 +121,7 @@ impl ObjectType {
     }
 
     /// Returns the name of the object type.
-    pub const fn name(&self) -> &'static str {
+    pub const fn _name(&self) -> &'static str {
         match self {
             ObjectType::Table(_) => "table",
             ObjectType::Index => "index",

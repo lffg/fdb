@@ -1,4 +1,4 @@
-use std::{borrow::Cow, io};
+use std::io;
 
 use crate::catalog::page::PageId;
 
@@ -27,16 +27,8 @@ pub enum Error {
     CorruptedTypeTag,
 
     /// UTF-8 error.
-    #[error("utf-8 error while decoding string for `{0}`")]
-    CorruptedUtf8(Cow<'static, str>),
-
-    /// Invalid size error.
-    #[error("invalid size for `{name}`: expected at most {expected} bytes, but found {actual}")]
-    SizeGreaterThanExpected {
-        name: Cow<'static, str>,
-        expected: usize,
-        actual: usize,
-    },
+    #[error("utf-8 error while decoding string")]
+    CorruptedUtf8,
 
     /// An generic IO error.
     #[error("io error: {0}")]

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, num::NonZeroU32};
+use std::num::NonZeroU32;
 
 use buff::Buff;
 
@@ -41,20 +41,11 @@ pub trait BuffExt {
     /// Reads `N` bytes and compares it to the given slice.
     fn read_verify_eq<const N: usize>(&mut self, expected: [u8; N]) -> Result<(), ()>;
 
-    /// Reads a fixed-size UTF-8 string.
-    fn read_fixed_size_string(
-        &mut self,
-        size: usize,
-        value_name: impl Into<Cow<'static, str>>,
-    ) -> DbResult<String>;
+    /// Reads a variable-length string, using a 2-byte length field.
+    fn read_var_size_string(&mut self) -> DbResult<String>;
 
-    /// Writes a fixed-size UTF-8 string.
-    fn write_fixed_size_string(
-        &mut self,
-        size: usize,
-        str: &str,
-        value_name: impl Into<Cow<'static, str>>,
-    ) -> DbResult<()>;
+    /// Writes a variable-length string, using a 2-byte length field.
+    fn write_var_size_string(&mut self, str: &str) -> DbResult<()>;
 }
 
 impl BuffExt for Buff<'_> {
@@ -79,39 +70,20 @@ impl BuffExt for Buff<'_> {
         }
     }
 
-    fn read_fixed_size_string(
-        &mut self,
-        size: usize,
-        value_name: impl Into<Cow<'static, str>>,
-    ) -> DbResult<String> {
-        let mut buf = vec![0; size];
+    fn read_var_size_string(&mut self) -> DbResult<String> {
+        let len: u16 = self.read();
+        let mut buf = vec![0; len as usize]; // TODO: Optimize using `MaybeUninit`.
         self.read_slice(&mut buf);
-
-        let hi = buf.iter().position(|byte| *byte == 0).unwrap_or(buf.len());
-        buf.truncate(hi);
-
-        let string = String::from_utf8(buf).map_err(|_| Error::CorruptedUtf8(value_name.into()))?;
-        Ok(string)
+        into_utf8(buf)
     }
 
-    fn write_fixed_size_string(
-        &mut self,
-        size: usize,
-        str: &str,
-        value_name: impl Into<Cow<'static, str>>,
-    ) -> DbResult<()> {
-        if str.len() > size {
-            return Err(Error::SizeGreaterThanExpected {
-                name: value_name.into(),
-                expected: size,
-                actual: str.len(),
-            });
-        }
-        self.scoped_exact(size, |buf| {
-            let bytes = str.as_bytes();
-            buf.write_slice(bytes);
-            buf.write_bytes(size - bytes.len(), 0);
-        });
+    fn write_var_size_string(&mut self, str: &str) -> DbResult<()> {
+        self.write::<u16>(str.len() as u16);
+        self.write_slice(str.as_bytes());
         Ok(())
     }
+}
+
+pub fn into_utf8(bytes: Vec<u8>) -> DbResult<String> {
+    String::from_utf8(bytes).map_err(|_| Error::CorruptedUtf8)
 }
