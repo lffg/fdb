@@ -1,10 +1,10 @@
 use buff::Buff;
 
 use crate::{
+    catalog::page::{Page, PageId},
     config::PAGE_SIZE,
     disk_manager::DiskManager,
     error::DbResult,
-    page::{Page, PageId},
 };
 
 /// The pager, also known as buffer pool manager or as page cache, is a central

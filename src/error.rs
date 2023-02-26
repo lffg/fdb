@@ -1,6 +1,6 @@
 use std::{borrow::Cow, io};
 
-use crate::page::PageId;
+use crate::catalog::page::PageId;
 
 pub type DbResult<T, E = Error> = Result<T, E>;
 

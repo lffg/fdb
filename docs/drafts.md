@@ -1,11 +1,18 @@
+# TODO
+
+- [ ] Save `PAGE_SIZE` and `IDENTIFIER_SIZE` in the header. Also, parameterize
+      them for testing purposes.
+
 # Ideia: Schema na heap
 
-Como não faz sentido armazenar o SCHEMA no `catalog::Object`, o schema de cada
-tabela ficará na PRIMEIRA PÁGINA da HEAP.
+~~Como não faz sentido armazenar o SCHEMA no `catalog::Object`, o schema de cada
+tabela ficará na PRIMEIRA PÁGINA da HEAP.~~
 
-Toda primeira página de HEAP tem um schema de tamanho variável, que contém o
+~~Toda primeira página de HEAP tem um schema de tamanho variável, que contém o
 SCHEMA da tabela e o ID para as páginas seguintes, que não mais precisam
-considerar o schema (que já estaria em memória).
+considerar o schema (que já estaria em memória).~~
+
+Nonsense. Faz mais sentido colocar tudo no catálogo inicial.
 
 # Ideia: Dirty pages?
 

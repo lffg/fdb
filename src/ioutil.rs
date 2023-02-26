@@ -3,8 +3,8 @@ use std::{borrow::Cow, num::NonZeroU32};
 use buff::Buff;
 
 use crate::{
+    catalog::page::PageId,
     error::{DbResult, Error},
-    page::PageId,
 };
 
 /// Defines a common serialization/deserialization interface based in the

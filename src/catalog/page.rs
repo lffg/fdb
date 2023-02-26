@@ -2,13 +2,13 @@ use std::num::NonZeroU32;
 
 use crate::{config::PAGE_SIZE, ioutil::Serde};
 
-// TODO: `free_list`.
-pub mod first;
-pub mod heap;
+/// The first page definition.
+mod first;
+pub use first::*;
 
-pub mod catalog_data;
-pub mod main_header_data;
-pub mod schema_data;
+/// The heap page definition.
+mod heap;
+pub use heap::*;
 
 /// A contract that represents an in-memory page.
 ///
@@ -68,14 +68,12 @@ pub enum PageState<P> {
 }
 
 impl<P> PageState<P> {
-    // Uncomment when needed
-    // =====================
-    // /// Returns the underlying page.
-    // pub fn into_inner(self) -> P {
-    //     match self {
-    //         PageState::New(inner) | PageState::Existing(inner) => inner,
-    //     }
-    // }
+    /// Returns the underlying page.
+    pub fn _into_inner(self) -> P {
+        match self {
+            PageState::New(inner) | PageState::Existing(inner) => inner,
+        }
+    }
 
     /// Returns a reference to the underlying page.
     pub fn get(&self) -> &P {

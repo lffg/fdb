@@ -1,7 +1,10 @@
 use crate::{
+    catalog::{
+        column::Column,
+        page::{Page, PageId},
+    },
     error::{DbResult, Error},
     ioutil::{BuffExt, Serde},
-    page::{schema_data::SchemaData, Page, PageId},
 };
 
 /// Heap page. Stores records in an unordered manner.
@@ -54,7 +57,7 @@ impl Serde for HeapPage {
 /// heap pages in the "linked list".
 #[derive(Debug)]
 pub enum HeapPageType {
-    FirstWithSchema(SchemaData),
+    FirstWithSchema(TableSchema),
     FirstWithoutSchema,
     Node,
 }
@@ -74,7 +77,9 @@ impl Serde for HeapPageType {
     {
         let tag: u8 = buf.read();
         match tag {
-            0 => Ok(HeapPageType::FirstWithSchema(SchemaData::deserialize(buf)?)),
+            0 => Ok(HeapPageType::FirstWithSchema(TableSchema::deserialize(
+                buf,
+            )?)),
             1 => Ok(HeapPageType::FirstWithoutSchema),
             2 => Ok(HeapPageType::Node),
             _ => Err(Error::CorruptedHeapPageTypeTag),
@@ -90,5 +95,36 @@ impl HeapPageType {
             HeapPageType::FirstWithoutSchema => 1,
             HeapPageType::Node => 2,
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct TableSchema {
+    pub column_count: u16,
+    pub columns: Vec<Column>,
+}
+
+impl Serde for TableSchema {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        buf.write(self.column_count);
+        debug_assert_eq!(self.column_count as usize, self.columns.len());
+        for column in &self.columns {
+            column.serialize(buf)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let column_count: u16 = buf.read();
+        let columns: Vec<_> = (0..column_count)
+            .map(|_| Column::deserialize(buf))
+            .collect::<Result<_, _>>()?;
+        Ok(TableSchema {
+            column_count,
+            columns,
+        })
     }
 }

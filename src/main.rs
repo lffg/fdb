@@ -3,15 +3,14 @@ use std::path::Path;
 use tracing::info;
 
 use crate::{
+    catalog::{
+        column::Column,
+        object::{Object, ObjectSchema, ObjectType},
+        page::{FirstPage, HeapPage, HeapPageType, PageId, PageState, TableSchema},
+        ty::TypeId,
+    },
     disk_manager::DiskManager,
     error::{DbResult, Error},
-    page::{
-        catalog_data::CatalogData,
-        first::FirstPage,
-        heap::{HeapPage, HeapPageType},
-        schema_data::SchemaData,
-        PageId, PageState,
-    },
     pager::Pager,
 };
 
@@ -19,7 +18,6 @@ mod error;
 
 mod catalog;
 mod config;
-mod page;
 
 mod disk_manager;
 mod pager;
@@ -55,11 +53,11 @@ fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResul
 
     let heap_page_id = PageId::new_u32(2);
 
-    first_page.catalog = CatalogData {
+    first_page.object_schema = ObjectSchema {
         next_id: None,
         object_count: 1,
-        objects: vec![catalog::Object {
-            ty: catalog::ObjectType::Table,
+        objects: vec![Object {
+            ty: ObjectType::Table,
             page_id: heap_page_id,
             name: "chess_matches".into(),
         }],
@@ -69,15 +67,15 @@ fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResul
     let first_heap_page = HeapPage {
         id: heap_page_id,
         next_page_id: None,
-        ty: HeapPageType::FirstWithSchema(SchemaData {
+        ty: HeapPageType::FirstWithSchema(TableSchema {
             column_count: 2,
             columns: vec![
-                catalog::Column {
-                    ty: catalog::TypeId::Int,
+                Column {
+                    ty: TypeId::Int,
                     name: "id".into(),
                 },
-                catalog::Column {
-                    ty: catalog::TypeId::Int,
+                Column {
+                    ty: TypeId::Int,
                     name: "age".into(),
                 },
             ],

@@ -5,9 +5,9 @@ use std::{
 };
 
 use crate::{
+    catalog::page::PageId,
     config::PAGE_SIZE,
     error::{DbResult, Error},
-    page::PageId,
 };
 
 pub struct DiskManager {
