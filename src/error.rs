@@ -26,10 +26,6 @@ pub enum Error {
     #[error("corrupted type tag")]
     CorruptedTypeTag,
 
-    /// Invalid heap page type tag.
-    #[error("corrupted heap page type tag")]
-    CorruptedHeapPageTypeTag,
-
     /// UTF-8 error.
     #[error("utf-8 error while decoding string for `{0}`")]
     CorruptedUtf8(Cow<'static, str>),

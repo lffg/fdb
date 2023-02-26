@@ -4,10 +4,8 @@ use tracing::info;
 
 use crate::{
     catalog::{
-        column::Column,
         object::{Object, ObjectSchema, ObjectType},
-        page::{FirstPage, HeapPage, HeapPageType, PageId, PageState, TableSchema},
-        ty::TypeId,
+        page::{FirstPage, HeapPage, PageId, PageState},
     },
     disk_manager::DiskManager,
     error::{DbResult, Error},
@@ -67,19 +65,6 @@ fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResul
     let first_heap_page = HeapPage {
         id: heap_page_id,
         next_page_id: None,
-        ty: HeapPageType::FirstWithSchema(TableSchema {
-            column_count: 2,
-            columns: vec![
-                Column {
-                    ty: TypeId::Int,
-                    name: "id".into(),
-                },
-                Column {
-                    ty: TypeId::Int,
-                    name: "age".into(),
-                },
-            ],
-        }),
         bytes: b"hello, world! (i am not yet structured)".to_vec(),
     };
     pager.write_flush(&first_heap_page)?;
