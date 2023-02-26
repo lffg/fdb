@@ -41,6 +41,12 @@ pub trait BuffExt {
     /// Reads `N` bytes and compares it to the given slice.
     fn read_verify_eq<const N: usize>(&mut self, expected: [u8; N]) -> Result<(), ()>;
 
+    /// Reads a variable-length blob, using a 2-byte length field.
+    fn read_var_size_blob(&mut self) -> DbResult<Vec<u8>>;
+
+    /// Writes a variable-length blob, using a 2-byte length field.
+    fn write_var_size_blob(&mut self, blob: &[u8]) -> DbResult<()>;
+
     /// Reads a variable-length string, using a 2-byte length field.
     fn read_var_size_string(&mut self) -> DbResult<String>;
 
@@ -70,20 +76,25 @@ impl BuffExt for Buff<'_> {
         }
     }
 
-    fn read_var_size_string(&mut self) -> DbResult<String> {
+    fn read_var_size_blob(&mut self) -> DbResult<Vec<u8>> {
         let len: u16 = self.read();
         let mut buf = vec![0; len as usize]; // TODO: Optimize using `MaybeUninit`.
         self.read_slice(&mut buf);
-        into_utf8(buf)
+        Ok(buf)
+    }
+
+    fn write_var_size_blob(&mut self, blob: &[u8]) -> DbResult<()> {
+        self.write::<u16>(blob.len() as u16);
+        self.write_slice(blob);
+        Ok(())
+    }
+
+    fn read_var_size_string(&mut self) -> DbResult<String> {
+        self.read_var_size_blob()
+            .and_then(|bytes| String::from_utf8(bytes).map_err(|_| Error::CorruptedUtf8))
     }
 
     fn write_var_size_string(&mut self, str: &str) -> DbResult<()> {
-        self.write::<u16>(str.len() as u16);
-        self.write_slice(str.as_bytes());
-        Ok(())
+        self.write_var_size_blob(str.as_bytes())
     }
-}
-
-pub fn into_utf8(bytes: Vec<u8>) -> DbResult<String> {
-    String::from_utf8(bytes).map_err(|_| Error::CorruptedUtf8)
 }
