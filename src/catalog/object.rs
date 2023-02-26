@@ -1,5 +1,5 @@
 use crate::{
-    catalog::page::PageId,
+    catalog::{page::PageId, table_schema::TableSchema},
     config::IDENTIFIER_SIZE,
     error::{DbResult, Error},
     ioutil::{BuffExt, Serde},
@@ -50,10 +50,10 @@ impl Serde for ObjectSchema {
 /// index, etc.
 #[derive(Debug)]
 pub struct Object {
-    /// The object's type (e.g. a table, an index, etc).
-    pub ty: ObjectType,
     /// The ID of the first page that stores the actual records.
     pub page_id: PageId,
+    /// The object's type (e.g. a table, an index, etc).
+    pub ty: ObjectType,
     /// The object name (e.g. the table name as per the user's definition).
     ///
     /// The object name (i.e., a table name or an index name) may have at most
@@ -74,24 +74,25 @@ impl Serde for Object {
         Self: Sized,
     {
         let ty = ObjectType::deserialize(buf)?;
-        Ok(Object {
-            ty,
-            page_id: buf.read_page_id().expect("non-null page id"),
-            name: buf.read_fixed_size_string(IDENTIFIER_SIZE, ty.name())?,
-        })
+        let page_id = buf.read_page_id().expect("non-null page id");
+        let name = buf.read_fixed_size_string(IDENTIFIER_SIZE, ty.name())?;
+        Ok(Object { ty, page_id, name })
     }
 }
 
 /// An [`Object`] type.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub enum ObjectType {
-    Table = 0xA,
-    Index = 0xB,
+    Table(TableSchema),
+    Index,
 }
 
 impl Serde for ObjectType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
+        if let ObjectType::Table(table_schema) = self {
+            table_schema.serialize(buf)?;
+        }
         Ok(())
     }
 
@@ -101,7 +102,10 @@ impl Serde for ObjectType {
     {
         let tag: u8 = buf.read();
         match tag {
-            0xA => Ok(ObjectType::Table),
+            0xA => {
+                let table_schema = TableSchema::deserialize(buf)?;
+                Ok(ObjectType::Table(table_schema))
+            }
             0xB => Ok(ObjectType::Index),
             _ => Err(Error::CorruptedObjectTypeTag),
         }
@@ -111,13 +115,16 @@ impl Serde for ObjectType {
 impl ObjectType {
     /// Returns the tag associated with the `HeapPageId`.
     pub const fn discriminant(&self) -> u8 {
-        *self as u8
+        match self {
+            ObjectType::Table(_) => 0xA,
+            ObjectType::Index => 0xB,
+        }
     }
 
     /// Returns the name of the object type.
     pub const fn name(&self) -> &'static str {
         match self {
-            ObjectType::Table => "table",
+            ObjectType::Table(_) => "table",
             ObjectType::Index => "index",
         }
     }

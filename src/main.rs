@@ -4,8 +4,11 @@ use tracing::info;
 
 use crate::{
     catalog::{
+        column::Column,
         object::{Object, ObjectSchema, ObjectType},
         page::{FirstPage, HeapPage, PageId, PageState},
+        table_schema::TableSchema,
+        ty::TypeId,
     },
     disk_manager::DiskManager,
     error::{DbResult, Error},
@@ -34,9 +37,10 @@ fn main() -> DbResult<()> {
     };
     // TODO: Load full object catalog.
 
+    let first_page: FirstPage = pager.load(PageId::new_u32(1))?;
     let mut second_page: HeapPage = pager.load(PageId::new_u32(2))?;
 
-    println!("First page:\n{:#?}\n", first_page.get());
+    println!("First page:\n{first_page:#?}\n");
     second_page.bytes = vec![]; // hide for print below.
     println!("Second page:\n{second_page:#?}\n");
 
@@ -55,7 +59,19 @@ fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResul
         next_id: None,
         object_count: 1,
         objects: vec![Object {
-            ty: ObjectType::Table,
+            ty: ObjectType::Table(TableSchema {
+                column_count: 2,
+                columns: vec![
+                    Column {
+                        ty: TypeId::Int,
+                        name: "id".into(),
+                    },
+                    Column {
+                        ty: TypeId::Int,
+                        name: "age".into(),
+                    },
+                ],
+            }),
             page_id: heap_page_id,
             name: "chess_matches".into(),
         }],
