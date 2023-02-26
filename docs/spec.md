@@ -43,6 +43,16 @@ future.
       > Hence, the database implementation may use the same kind of page used by
       > "regular tables" to store the next pages of the object schema.
 
+Each "data page" is stored as a heap pages. Records are stored sequentially and
+a record may not surpass the maximum page size.
+
+Pages may be padded with zeroes towards if the next record doesn't fit into such
+a portion. In the future, as an optimization, variable-length fields (such as
+strings or blobs) will be stored separately, so that this padding doesn't waste
+much space. (see below)
+
+### TODO
+
 Each "data page" (e.g. heap pages used to store tables) are formatted as a
 slotted page. E.g.:
 
