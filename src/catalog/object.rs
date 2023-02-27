@@ -49,10 +49,10 @@ impl Serde for ObjectSchema {
 /// index, etc.
 #[derive(Debug)]
 pub struct Object {
-    /// The ID of the first page that stores the actual records.
-    pub page_id: PageId,
     /// The object's type (e.g. a table, an index, etc).
     pub ty: ObjectType,
+    /// The ID of the first page that stores the actual records.
+    pub page_id: PageId,
     /// The object name (e.g. the table name as per the user's definition).
     ///
     /// The object name (i.e., a table name or an index name) may have at most
