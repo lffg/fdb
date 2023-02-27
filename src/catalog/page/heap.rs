@@ -10,7 +10,7 @@ use crate::{
 pub const FIRST_HEAP_PAGE_HEADER_SIZE: u16 = ORDINARY_HEAP_PAGE_HEADER_SIZE + 16;
 
 /// The size of the header of ordinary heap pages.
-pub const ORDINARY_HEAP_PAGE_HEADER_SIZE: u16 = 10;
+pub const ORDINARY_HEAP_PAGE_HEADER_SIZE: u16 = 12;
 
 /// The first [`HeapPage`] in the sequence.
 #[derive(Debug)]
@@ -43,6 +43,7 @@ impl Serde for FirstHeapPage {
             buf.write_page_id(Some(self.ordinary_page.id));
             buf.write_page_id(self.ordinary_page.next_page_id);
             buf.write(self.ordinary_page.record_count);
+            buf.write(self.ordinary_page.free_offset);
             // first page only header fields
             buf.write_page_id(Some(self.last_page_id));
             buf.write(self.total_page_count);
@@ -61,6 +62,7 @@ impl Serde for FirstHeapPage {
         let id = buf.read_page_id().expect("current page id");
         let next_page_id = buf.read_page_id();
         let record_count: u16 = buf.read();
+        let free_offset: u16 = buf.read();
         // first page only header fields
         let last_page_id = buf.read_page_id().expect("last page id");
         let total_page_count: u32 = buf.read();
@@ -77,6 +79,7 @@ impl Serde for FirstHeapPage {
                 id,
                 next_page_id,
                 record_count,
+                free_offset,
                 bytes,
             },
         })
@@ -90,6 +93,8 @@ pub struct OrdinaryHeapPage {
     pub next_page_id: Option<PageId>,
     /// Element count in this page.
     pub record_count: u16,
+    /// Offset of the free bytes section.
+    pub free_offset: u16,
     pub bytes: Vec<u8>, // TODO: Review this.
 }
 
@@ -105,6 +110,7 @@ impl Serde for OrdinaryHeapPage {
             buf.write_page_id(Some(self.id));
             buf.write_page_id(self.next_page_id);
             buf.write(self.record_count);
+            buf.write(self.free_offset);
             Ok::<_, Error>(())
         })?;
         buf.write_slice(&self.bytes);
@@ -118,6 +124,7 @@ impl Serde for OrdinaryHeapPage {
         let id = buf.read_page_id().expect("current page id");
         let next_page_id = buf.read_page_id();
         let record_count: u16 = buf.read();
+        let free_offset: u16 = buf.read();
 
         let mut bytes = vec![0; buf.remaining()]; // TODO: Optimize using `MaybeUninit`.
         buf.read_slice(&mut bytes);
@@ -126,6 +133,7 @@ impl Serde for OrdinaryHeapPage {
             id,
             next_page_id,
             record_count,
+            free_offset,
             bytes,
         })
     }

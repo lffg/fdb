@@ -6,7 +6,10 @@ use crate::{
     catalog::{
         column::Column,
         object::{Object, ObjectSchema, ObjectType},
-        page::{FirstHeapPage, FirstPage, OrdinaryHeapPage, PageId, PageState},
+        page::{
+            FirstHeapPage, FirstPage, OrdinaryHeapPage, PageId, PageState,
+            FIRST_HEAP_PAGE_HEADER_SIZE,
+        },
         table_schema::TableSchema,
         ty::TypeId,
     },
@@ -41,6 +44,9 @@ fn main() -> DbResult<()> {
     let mut second_page: FirstHeapPage = pager.load(PageId::new_u32(2))?;
 
     println!("First page:\n{first_page:#?}\n");
+    let bytes = &second_page.ordinary_page.bytes
+        [..(second_page.ordinary_page.free_offset - FIRST_HEAP_PAGE_HEADER_SIZE) as usize];
+    println!("bytes are {}", std::str::from_utf8(bytes).unwrap());
     second_page.ordinary_page.bytes = vec![]; // hide for print below.
     println!("Second page:\n{second_page:#?}\n");
 
@@ -78,6 +84,7 @@ fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResul
     };
     pager.write_flush(first_page)?;
 
+    let bytes = b"hello, world! (i am not yet structured)";
     let first_heap_page = FirstHeapPage {
         last_page_id: heap_page_id,
         total_page_count: 1,
@@ -86,7 +93,8 @@ fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResul
             id: heap_page_id,
             next_page_id: None,
             record_count: 1,
-            bytes: b"hello, world! (i am not yet structured)".to_vec(),
+            free_offset: FIRST_HEAP_PAGE_HEADER_SIZE + bytes.len() as u16,
+            bytes: bytes.to_vec(),
         },
     };
 
