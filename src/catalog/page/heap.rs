@@ -2,6 +2,7 @@
 
 use crate::{
     catalog::page::{Page, PageId},
+    config::PAGE_SIZE,
     error::{DbResult, Error},
     ioutil::{BuffExt, Serde},
 };
@@ -86,6 +87,20 @@ impl Serde for FirstHeapPage {
     }
 }
 
+impl FirstHeapPage {
+    /// Constructs a new page.
+    pub fn new(page_id: PageId) -> Self {
+        let mut page = FirstHeapPage {
+            last_page_id: page_id,
+            total_page_count: 1,
+            total_record_count: 0,
+            ordinary_page: OrdinaryHeapPage::new(page_id),
+        };
+        page.ordinary_page.free_offset = FIRST_HEAP_PAGE_HEADER_SIZE;
+        page
+    }
+}
+
 /// Ordinary heap page.
 #[derive(Debug)]
 pub struct OrdinaryHeapPage {
@@ -136,5 +151,23 @@ impl Serde for OrdinaryHeapPage {
             free_offset,
             bytes,
         })
+    }
+}
+
+impl OrdinaryHeapPage {
+    /// Constructs a new page.
+    pub fn new(page_id: PageId) -> Self {
+        OrdinaryHeapPage {
+            id: page_id,
+            next_page_id: None,
+            record_count: 0,
+            free_offset: ORDINARY_HEAP_PAGE_HEADER_SIZE,
+            bytes: vec![],
+        }
+    }
+
+    /// Returns the remaining number of bytes in the record section.
+    pub fn remaining(&self) -> u64 {
+        PAGE_SIZE - self.free_offset as u64
     }
 }

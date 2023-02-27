@@ -30,6 +30,10 @@ pub enum Error {
     #[error("utf-8 error while decoding string")]
     CorruptedUtf8,
 
+    /// Generic error.
+    #[error("execution error: {0}")]
+    ExecError(String),
+
     /// An generic IO error.
     #[error("io error: {0}")]
     Io(#[from] io::Error),

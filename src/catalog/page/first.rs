@@ -49,12 +49,13 @@ impl Serde for FirstPage {
     }
 }
 
-impl Default for FirstPage {
-    fn default() -> Self {
+impl FirstPage {
+    /// Constructs a new page.
+    pub fn new() -> Self {
         Self {
             header: MainHeader {
-                file_format_version: 0,
-                page_count: 0,
+                file_format_version: 1,
+                page_count: 1,
                 first_free_list_page_id: None,
             },
             object_schema: ObjectSchema {

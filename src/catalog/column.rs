@@ -5,7 +5,7 @@ use crate::{
 };
 
 /// A column definition.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Column {
     /// The column value type.
     pub ty: TypeId,

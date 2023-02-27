@@ -47,7 +47,7 @@ impl Serde for ObjectSchema {
 /// The database object definition. From the database's point of view, an
 /// "object" is a structured group of information; for example, a table, an
 /// index, etc.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Object {
     /// The object's type (e.g. a table, an index, etc).
     pub ty: ObjectType,
@@ -80,7 +80,7 @@ impl Serde for Object {
 }
 
 /// An [`Object`] type.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ObjectType {
     Table(TableSchema),
     Index,

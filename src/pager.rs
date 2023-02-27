@@ -1,4 +1,5 @@
 use buff::Buff;
+use tracing::info;
 
 use crate::{
     catalog::page::{Page, PageId},
@@ -28,6 +29,8 @@ impl Pager {
 
     /// Given a page ID, fetches it from the disk.
     pub fn load<P: Page>(&mut self, id: PageId) -> DbResult<P> {
+        info!(?id, "loading page");
+
         // TODO: Use a buffer pool.
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         let mut buf = Buff::new(&mut *buf);
@@ -40,11 +43,14 @@ impl Pager {
 
     /// Immediately writes the given page on the disk.
     pub fn write_flush(&mut self, page: &dyn Page) -> DbResult<()> {
+        let id = page.id();
+        info!(?id, "flushing page");
+
         // TODO: Use a buffer pool.
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         let mut buf = Buff::new(&mut *buf);
 
         page.serialize(&mut buf)?;
-        self.dm.write_page(page.id(), buf.get())
+        self.dm.write_page(id, buf.get())
     }
 }

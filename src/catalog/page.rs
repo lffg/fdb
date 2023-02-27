@@ -31,7 +31,7 @@ pub trait Page: Serde {
 /// first page at index 1. This allows using the 0-value to encode NULL pages,
 /// i.e., a reference to a page that doesn't exist. Indeed, this same approach
 /// is used by DBMSs such as SQLite.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct PageId(NonZeroU32);
 

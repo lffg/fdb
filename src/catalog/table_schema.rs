@@ -1,7 +1,7 @@
 use crate::{catalog::column::Column, error::DbResult, ioutil::Serde};
 
 /// A table object schema.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableSchema {
     /// The column count.
     pub column_count: u16,
