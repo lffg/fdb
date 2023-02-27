@@ -97,6 +97,17 @@ impl<'a> Buff<'a> {
         self.slice_to(count).fill(val);
     }
 
+    /// Creates a scope used to compute the byte delta.
+    pub fn delta<F, R>(&mut self, scope: F) -> (usize, R)
+    where
+        F: Fn(&mut Self) -> R,
+    {
+        let start = self.offset;
+        let ret = scope(self);
+        let delta = self.offset - start;
+        (delta, ret)
+    }
+
     /// Creates a scope in which exactly `count` bytes must be advanced (by
     /// reads or writes). This method shall be used as a sanity check scope.
     ///
@@ -108,9 +119,8 @@ impl<'a> Buff<'a> {
     where
         F: Fn(&mut Self) -> R,
     {
-        let start = self.offset;
-        let ret = scope(self);
-        assert_eq!(self.offset - start, count);
+        let (delta, ret) = self.delta(scope);
+        assert_eq!(delta, count);
         ret
     }
 }
@@ -222,6 +232,19 @@ mod tests {
         buf.seek(0);
         let b: i32 = buf.read();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_delta() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        let (delta, _) = buf.delta(|buf| {
+            let _: u8 = buf.read();
+            let _: u16 = buf.read();
+        });
+        assert_eq!(delta, 3);
+        assert_eq!(buf.remaining(), 1);
     }
 
     #[test]
