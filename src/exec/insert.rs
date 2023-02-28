@@ -10,20 +10,23 @@ use crate::{
         common::{find_object, object_is_not_table},
         serde::serialize_table_record,
         value::Environment,
-        Command, ExecCtx,
+        ExecCtx, Executor,
     },
 };
 
-/// An insert command.
-pub struct InsertCmd<'a> {
-    pub table_name: &'a str,
-    pub env: Environment,
+/// An insert operation.
+pub struct Insert<'s> {
+    /// The table name.
+    table_name: &'s str,
+    /// The values to be inserted.
+    env: Environment,
 }
 
-impl Command for InsertCmd<'_> {
-    type Ret = ();
+impl Executor for Insert<'_> {
+    // TODO: Add number of inserted rows.
+    type Item<'a> = ();
 
-    fn execute(self, ctx: &mut ExecCtx) -> DbResult<Self::Ret> {
+    fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, &self.table_name)?;
         let ObjectType::Table(table) = object.ty else {
             return Err(object_is_not_table(&object));
@@ -52,6 +55,13 @@ impl Command for InsertCmd<'_> {
 
         ctx.pager.write_flush(&first_page)?;
 
-        Ok(())
+        Ok(None)
+    }
+}
+
+impl<'s> Insert<'s> {
+    /// Creates a new insert executor.
+    pub fn new(table_name: &'s str, env: Environment) -> Insert<'s> {
+        Self { table_name, env }
     }
 }

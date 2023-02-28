@@ -91,7 +91,7 @@ mod t {
         error::DbResult,
         exec::{
             value::{Environment, Value},
-            Command, ExecCtx,
+            ExecCtx, Executor,
         },
         pager::Pager,
     };
@@ -105,14 +105,14 @@ mod t {
         // obviously this is not permanent.
         let first_page: FirstPage = pager.load(PageId::new_u32(1))?;
 
-        let cmd = exec::InsertCmd {
-            table_name: "chess_matches",
-            env: Environment::from(HashMap::from([
+        let mut cmd = exec::Insert::new(
+            "chess_matches",
+            Environment::from(HashMap::from([
                 ("id".into(), Value::Int(4)),
                 ("age".into(), Value::Int(0xF)),
             ])),
-        };
-        cmd.execute(&mut ExecCtx {
+        );
+        cmd.next(&mut ExecCtx {
             pager,
             object_schema: &first_page.object_schema,
         })?;

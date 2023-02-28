@@ -14,8 +14,17 @@ pub struct ExecCtx<'a> {
     pub object_schema: &'a ObjectSchema,
 }
 
-pub trait Command {
-    type Ret;
+/// Executor trait. It is implemented for all database operations.
+///
+/// The database execution is based on the iterator model. This trait expresses
+/// such an iterator. The `next` method may be called arbitrarily to lazily
+/// fetch records without running out of memory.
+///
+/// The iterator `Item` is generic over the lifetime of [`ExecCtx`] since it may
+/// borrow from such a context's fields, especially from the [`Pager`].
+pub trait Executor {
+    type Item<'a>;
 
-    fn execute(self, ctx: &mut ExecCtx) -> DbResult<Self::Ret>;
+    /// Produces the next value in the stream.
+    fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>>;
 }
