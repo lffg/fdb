@@ -1,11 +1,26 @@
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+    path::Path,
+    str::FromStr,
+};
 
 use tracing::info;
 
 use crate::{
-    catalog::page::{FirstPage, PageId, PageState},
+    catalog::{
+        column::Column,
+        object::{Object, ObjectSchema, ObjectType},
+        page::{FirstHeapPage, FirstPage, PageId, PageState},
+        table_schema::TableSchema,
+        ty::TypeId,
+    },
     disk_manager::DiskManager,
     error::{DbResult, Error},
+    exec::{
+        value::{Environment, Value},
+        ExecCtx, Executor,
+    },
     pager::Pager,
 };
 
@@ -29,11 +44,49 @@ fn main() -> DbResult<()> {
 
     let mut first_page = load_first_page(&mut pager)?;
     if let PageState::New(first_page) = &mut first_page {
-        t::define_test_catalog(&mut pager, first_page)?;
+        define_test_catalog(&mut pager, first_page)?;
     };
-    // TODO: Load full object catalog.
 
-    t::main(&mut pager)?;
+    loop {
+        let mut exec_ctx = ExecCtx {
+            pager: &mut pager,
+            object_schema: &first_page.get().object_schema,
+        };
+
+        println!("Pick a command: `insert`, `select` or `quit`.");
+        match &*input::<String>("cmd> ") {
+            "insert" => {
+                let id: i32 = input("id (i32)> ");
+                let age: i32 = input("age (i32)> ");
+                let mut cmd = exec::Insert::new(
+                    "chess_matches",
+                    Environment::from(HashMap::from([
+                        ("id".into(), Value::Int(id)),
+                        ("age".into(), Value::Int(age)),
+                    ])),
+                );
+                cmd.next(&mut exec_ctx)?;
+                println!("ok");
+            }
+            "select" => {
+                let mut cmd = exec::Select::new("chess_matches");
+                println!("------------------------------------");
+                while let Some(env) = cmd.next(&mut exec_ctx)? {
+                    // Skip logically deleted rows.
+                    let Some(row) = env else { continue };
+
+                    let id = row.get("id").unwrap();
+                    let age = row.get("age").unwrap();
+                    println!("{id} | {age}");
+                }
+                println!("------------------------------------");
+            }
+            "quit" => break,
+            _ => {
+                println!("invalid option; try again.");
+            }
+        }
+    }
 
     Ok(())
 }
@@ -75,104 +128,58 @@ fn setup_tracing() {
         .init();
 }
 
-/// Testing utilities. This will be removed.
-mod t {
-    use std::collections::HashMap;
-
-    use super::*;
-    use crate::{
-        catalog::{
-            column::Column,
-            object::{Object, ObjectSchema, ObjectType},
-            page::{FirstHeapPage, FirstPage, PageId},
-            table_schema::TableSchema,
-            ty::TypeId,
-        },
-        error::DbResult,
-        exec::{
-            value::{Environment, Value},
-            ExecCtx, Executor,
-        },
-        pager::Pager,
-    };
-
-    pub fn main(pager: &mut Pager) -> DbResult<()> {
-        println!("=== after initialization ===");
-        print_pages(pager)?;
-
-        println!("\n\n");
-
-        // obviously this is not permanent.
-        let first_page: FirstPage = pager.load(PageId::new_u32(1))?;
-
-        let mut cmd = exec::Insert::new(
-            "chess_matches",
-            Environment::from(HashMap::from([
-                ("id".into(), Value::Int(4)),
-                ("age".into(), Value::Int(0xF)),
-            ])),
-        );
-        cmd.next(&mut ExecCtx {
-            pager,
-            object_schema: &first_page.object_schema,
-        })?;
-
-        println!("=== after insert ===");
-        print_pages(pager)?;
-
-        Ok(())
-    }
-
-    fn print_pages(pager: &mut Pager) -> DbResult<()> {
-        let first_page: FirstPage = pager.load(PageId::new_u32(1))?;
-        let mut second_page: FirstHeapPage = pager.load(PageId::new_u32(2))?;
-
-        println!("First page:\n{first_page:#?}\n");
-        second_page.ordinary_page.bytes = vec![]; // hide for print below.
-        println!("Second page:\n{second_page:#?}\n");
-
-        Ok(())
-    }
-
-    // TODO: While this database doesn't support user-defined tables (aka. `CREATE
-    // TABLE`), during bootstrap, one allocates a specific catalog to use for
-    // testing purposes.
-    pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResult<()> {
-        info!("defining test catalog");
-
-        let first_chess_matches_page_id = PageId::new_u32(2);
-
-        first_page.object_schema = ObjectSchema {
-            next_id: None,
-            object_count: 1,
-            objects: vec![Object {
-                ty: ObjectType::Table(get_chess_matches_schema()),
-                page_id: first_chess_matches_page_id,
-                name: "chess_matches".into(),
-            }],
-        };
-        pager.write_flush(first_page)?;
-
-        let first_chess_matches_table = FirstHeapPage::new(first_chess_matches_page_id);
-
-        pager.write_flush(&first_chess_matches_table)?;
-
-        Ok(())
-    }
-
-    fn get_chess_matches_schema() -> TableSchema {
-        TableSchema {
-            column_count: 2,
-            columns: vec![
-                Column {
-                    ty: TypeId::Int,
-                    name: "id".into(),
-                },
-                Column {
-                    ty: TypeId::Int,
-                    name: "age".into(),
-                },
-            ],
+/// Gets a value from the stdin.
+fn input<T: FromStr>(prompt: &str) -> T {
+    print!("{prompt}");
+    io::stdout().flush().unwrap();
+    let mut buf = String::new();
+    loop {
+        io::stdin().read_line(&mut buf).unwrap();
+        match T::from_str(buf.trim()) {
+            Ok(val) => break val,
+            Err(_) => println!("try again"),
         }
+    }
+}
+
+// TODO: While this database doesn't support user-defined tables (aka. `CREATE
+// TABLE`), during bootstrap, one allocates a specific catalog to use for
+// testing purposes.
+pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResult<()> {
+    info!("defining test catalog");
+
+    let first_chess_matches_page_id = PageId::new_u32(2);
+
+    first_page.object_schema = ObjectSchema {
+        next_id: None,
+        object_count: 1,
+        objects: vec![Object {
+            ty: ObjectType::Table(get_chess_matches_schema()),
+            page_id: first_chess_matches_page_id,
+            name: "chess_matches".into(),
+        }],
+    };
+    pager.write_flush(first_page)?;
+
+    let first_chess_matches_table = FirstHeapPage::new(first_chess_matches_page_id);
+
+    pager.write_flush(&first_chess_matches_table)?;
+
+    Ok(())
+}
+
+fn get_chess_matches_schema() -> TableSchema {
+    TableSchema {
+        column_count: 2,
+        columns: vec![
+            Column {
+                ty: TypeId::Int,
+                name: "id".into(),
+            },
+            Column {
+                ty: TypeId::Int,
+                name: "age".into(),
+            },
+        ],
     }
 }

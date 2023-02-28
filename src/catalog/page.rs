@@ -76,7 +76,7 @@ impl<P> PageState<P> {
     }
 
     /// Returns a reference to the underlying page.
-    pub fn _get(&self) -> &P {
+    pub fn get(&self) -> &P {
         match &self {
             PageState::New(inner) | PageState::Existing(inner) => inner,
         }

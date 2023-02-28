@@ -75,6 +75,21 @@ impl Value {
     }
 }
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Bool(inner) => inner.fmt(f),
+            Value::Byte(inner) => inner.fmt(f),
+            Value::ShortInt(inner) => inner.fmt(f),
+            Value::Int(inner) => inner.fmt(f),
+            Value::BigInt(inner) => inner.fmt(f),
+            Value::Timestamp(inner) => inner.fmt(f),
+            Value::Text(inner) => inner.fmt(f),
+            Value::Blob(inner) => write!(f, "<bytes ({})>", inner.len()),
+        }
+    }
+}
+
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
