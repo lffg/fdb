@@ -56,12 +56,14 @@ fn main() -> DbResult<()> {
         println!("Pick a command: `insert`, `select` or `quit`.");
         match &*input::<String>("cmd> ") {
             "insert" => {
-                let id: i32 = input("id (i32)> ");
-                let age: i32 = input("age (i32)> ");
+                let id: i32 = input("id (int)> ");
+                let name: String = input("name (text)> ");
+                let age: i32 = input("age (int)> ");
                 let mut cmd = exec::Insert::new(
                     "chess_matches",
                     Environment::from(HashMap::from([
                         ("id".into(), Value::Int(id)),
+                        ("name".into(), Value::Text(name)),
                         ("age".into(), Value::Int(age)),
                     ])),
                 );
@@ -70,16 +72,17 @@ fn main() -> DbResult<()> {
             }
             "select" => {
                 let mut cmd = exec::Select::new("chess_matches");
-                println!("------------------------------------");
+                println!("{}", "-".repeat(50));
                 while let Some(env) = cmd.next(&mut exec_ctx)? {
                     // Skip logically deleted rows.
                     let Some(row) = env else { continue };
 
                     let id = row.get("id").unwrap();
+                    let name = row.get("name").unwrap();
                     let age = row.get("age").unwrap();
-                    println!("{id} | {age}");
+                    println!("{id:<4} | {name:<20} | {age:<4}");
                 }
-                println!("------------------------------------");
+                println!("{}", "-".repeat(50));
             }
             "quit" => break,
             _ => {
@@ -170,11 +173,15 @@ pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbR
 
 fn get_chess_matches_schema() -> TableSchema {
     TableSchema {
-        column_count: 2,
+        column_count: 3,
         columns: vec![
             Column {
                 ty: TypeId::Int,
                 name: "id".into(),
+            },
+            Column {
+                ty: TypeId::Text,
+                name: "name".into(),
             },
             Column {
                 ty: TypeId::Int,
