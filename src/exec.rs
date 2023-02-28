@@ -8,6 +8,9 @@ pub mod value;
 mod insert;
 pub use insert::*;
 
+mod select;
+pub use select::*;
+
 /// Execution context.
 pub struct ExecCtx<'a> {
     pub pager: &'a mut Pager,

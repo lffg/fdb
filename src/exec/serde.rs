@@ -45,7 +45,7 @@ pub fn serialize_table_record(
 ///
 /// The first byte is used to determine the record's "aliveness". If the record
 /// is marked as delete, `None` is returned.
-pub fn _deserialize_table_record(
+pub fn deserialize_table_record(
     buf: &mut Buff<'_>,
     schema: &TableSchema,
 ) -> DbResult<Option<Environment>> {
