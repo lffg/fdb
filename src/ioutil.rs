@@ -22,7 +22,6 @@ pub trait Serde {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()>;
 
     /// Deserializes the page.
-    // TODO: Maybe use an associated type to encode the error.
     fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self>
     where
         Self: Sized;

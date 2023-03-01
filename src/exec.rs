@@ -23,8 +23,8 @@ pub struct ExecCtx<'a> {
 /// such an iterator. The `next` method may be called arbitrarily to lazily
 /// fetch records without running out of memory.
 ///
-/// The iterator `Item` is generic over the lifetime of [`ExecCtx`] since it may
-/// borrow from such a context's fields, especially from the [`Pager`].
+/// The element type `Item` is generic over the lifetime of [`ExecCtx`] since it
+/// may borrow from such a context's fields, especially from the [`Pager`].
 pub trait Executor {
     type Item<'a>;
 
