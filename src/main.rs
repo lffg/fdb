@@ -11,7 +11,7 @@ use crate::{
     catalog::{
         column::Column,
         object::{Object, ObjectSchema, ObjectType},
-        page::{FirstHeapPage, FirstPage, PageId, PageState},
+        page::{FirstPage, HeapPage, PageId, PageState},
         table_schema::TableSchema,
         ty::TypeId,
     },
@@ -133,14 +133,18 @@ fn setup_tracing() {
 
 /// Gets a value from the stdin.
 fn input<T: FromStr>(prompt: &str) -> T {
-    print!("{prompt}");
-    io::stdout().flush().unwrap();
     let mut buf = String::new();
     loop {
-        io::stdin().read_line(&mut buf).unwrap();
+        print!("{prompt}");
+        io::stdout().flush().unwrap();
+        buf.clear();
+        if io::stdin().read_line(&mut buf).unwrap() == 0 {
+            println!("\nbye");
+            std::process::exit(0);
+        }
         match T::from_str(buf.trim()) {
             Ok(val) => break val,
-            Err(_) => println!("try again"),
+            Err(_) => println!("try again."),
         }
     }
 }
@@ -164,7 +168,7 @@ pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbR
     };
     pager.write_flush(first_page)?;
 
-    let first_chess_matches_table = FirstHeapPage::new(first_chess_matches_page_id);
+    let first_chess_matches_table = HeapPage::new(first_chess_matches_page_id);
 
     pager.write_flush(&first_chess_matches_table)?;
 

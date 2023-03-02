@@ -1,10 +1,7 @@
 use buff::Buff;
 
 use crate::{
-    catalog::{
-        object::ObjectType,
-        page::{FirstHeapPage, FIRST_HEAP_PAGE_HEADER_SIZE},
-    },
+    catalog::{object::ObjectType, page::HeapPage},
     error::DbResult,
     exec::{
         common::{find_object, object_is_not_table},
@@ -32,28 +29,26 @@ impl Executor for Insert<'_> {
             return Err(object_is_not_table(&object));
         };
 
-        let mut first_page: FirstHeapPage = ctx.pager.load(object.page_id)?;
+        let mut page: HeapPage = ctx.pager.load(object.page_id)?;
+        let seq_header = page.seq_header.as_mut().expect("first page");
 
-        if first_page.last_page_id != object.page_id {
+        if seq_header.last_page_id != object.page_id {
             todo!("implement me");
         }
         // TODO: Handle not enough bytes left to store in the current page.
         let _needed = self.env.size();
-        let _remaining = first_page.ordinary_page.remaining();
 
         // Insert the record.
-        let offset = first_page.ordinary_page.free_offset - FIRST_HEAP_PAGE_HEADER_SIZE;
-        let bytes = &mut first_page.ordinary_page.bytes;
-        let mut buf = Buff::new(&mut bytes[offset as usize..]);
+        let mut buf = Buff::new(&mut page.bytes[page.free_offset as usize..]);
         let (delta, result) = buf.delta(|buf| serialize_table_record(buf, &table, &self.env));
         result?;
 
         // Update metadata.
-        first_page.total_record_count += 1;
-        first_page.ordinary_page.record_count += 1;
-        first_page.ordinary_page.free_offset += u16::try_from(delta).unwrap();
+        seq_header.record_count += 1;
+        page.record_count += 1;
+        page.free_offset += u16::try_from(delta).unwrap();
 
-        ctx.pager.write_flush(&first_page)?;
+        ctx.pager.write_flush(&page)?;
 
         Ok(None)
     }

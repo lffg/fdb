@@ -3,7 +3,7 @@ use buff::Buff;
 use crate::{
     catalog::{
         object::ObjectType,
-        page::{FirstHeapPage, OrdinaryHeapPage, PageId},
+        page::{HeapPage, PageId},
     },
     error::DbResult,
     exec::{
@@ -23,23 +23,21 @@ pub struct Select<'a> {
 
 /// Iterator state.
 struct IterState {
-    /// Current page.
-    bytes: Vec<u8>, // This will change soon.
-    next_page: Option<PageId>,
+    page: Box<HeapPage>,
     rem_total: u64,
     rem_page: u16,
-    next_offset: u16,
+    offset: u16,
 }
 
 impl IterState {
     fn init(pager: &mut Pager, first_page_id: PageId) -> DbResult<Self> {
-        let page: FirstHeapPage = pager.load(first_page_id)?;
+        let page: HeapPage = pager.load(first_page_id)?;
+        let seq_header = page.seq_header.as_ref().expect("first page");
         Ok(Self {
-            bytes: page.ordinary_page.bytes,
-            next_page: page.ordinary_page.next_page_id,
-            rem_total: page.total_record_count,
-            rem_page: page.ordinary_page.record_count,
-            next_offset: 0,
+            rem_total: seq_header.record_count,
+            rem_page: page.record_count,
+            page: Box::new(page),
+            offset: 0,
         })
     }
 }
@@ -64,24 +62,23 @@ impl Executor for Select<'_> {
             return Ok(None);
         }
         if state.rem_page == 0 {
-            let Some(next_page) = state.next_page else {
+            let Some(next_page) = state.page.next_page_id else {
                 return Ok(None);
             };
             // Load next page.
-            let page: OrdinaryHeapPage = ctx.pager.load(next_page)?;
-            state.bytes = page.bytes;
-            state.next_page = page.next_page_id;
+            let page: HeapPage = ctx.pager.load(next_page)?;
             state.rem_page = page.record_count;
-            state.next_offset = 0;
+            state.offset = 0;
+            state.page = Box::new(page);
         }
+
+        let mut buf = Buff::new(&mut state.page.bytes[state.offset as usize..]);
+
+        let (delta, result) = buf.delta(|buf| deserialize_table_record(buf, &table));
+        state.offset += delta as u16;
 
         state.rem_total -= 1;
         state.rem_page -= 1;
-
-        let mut buf = Buff::new(&mut state.bytes[state.next_offset as usize..]);
-
-        let (delta, result) = buf.delta(|buf| deserialize_table_record(buf, &table));
-        state.next_offset += delta as u16;
 
         Ok(Some(result?))
     }
