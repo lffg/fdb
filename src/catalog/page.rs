@@ -20,7 +20,7 @@ pub use heap::*;
 ///
 /// All `Page` implementation must also implement [`Serde`], so that they may be
 /// serialized and deserialized.
-pub trait Page: Serde {
+pub trait Page: for<'a> Serde<'a> {
     /// Returns the corresponding [`PageId`].
     fn id(&self) -> PageId;
 }
@@ -60,7 +60,7 @@ impl PageId {
     }
 }
 
-impl Serde for PageId {
+impl Serde<'_> for PageId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         Some(*self).serialize(buf)
     }
@@ -74,7 +74,7 @@ impl Serde for PageId {
     }
 }
 
-impl Serde for Option<PageId> {
+impl Serde<'_> for Option<PageId> {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let num = self.map(PageId::get).unwrap_or(0);
         buf.write(num);

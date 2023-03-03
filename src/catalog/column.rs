@@ -1,7 +1,7 @@
 use crate::{
     catalog::ty::TypeId,
     error::DbResult,
-    ioutil::{BuffExt, Serde},
+    ioutil::{Serde, VarString},
 };
 
 /// A column definition.
@@ -15,10 +15,10 @@ pub struct Column {
     pub name: String,
 }
 
-impl Serde for Column {
+impl Serde<'_> for Column {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
-        buf.write_var_size_string(&self.name)?;
+        VarString::from(self.name.as_str()).serialize(buf)?;
         Ok(())
     }
 
@@ -28,7 +28,7 @@ impl Serde for Column {
     {
         Ok(Column {
             ty: TypeId::deserialize(buf)?,
-            name: buf.read_var_size_string()?,
+            name: VarString::deserialize(buf)?.into(),
         })
     }
 }

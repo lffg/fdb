@@ -34,7 +34,7 @@ impl Page for FirstPage {
     }
 }
 
-impl Serde for FirstPage {
+impl Serde<'_> for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         self.object_schema.serialize(buf)?;
@@ -67,6 +67,12 @@ impl FirstPage {
     }
 }
 
+impl Default for FirstPage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The database header.
 #[derive(Debug)]
 pub struct MainHeader {
@@ -78,7 +84,7 @@ pub struct MainHeader {
     pub first_free_list_page_id: Option<PageId>,
 }
 
-impl Serde for MainHeader {
+impl Serde<'_> for MainHeader {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.scoped_exact(HEADER_SIZE, |buf| {
             buf.write_slice(b"fdb format");

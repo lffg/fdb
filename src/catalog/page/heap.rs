@@ -32,7 +32,7 @@ impl Page for HeapPage {
     }
 }
 
-impl Serde for HeapPage {
+impl Serde<'_> for HeapPage {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.id.serialize(buf)?;
         self.seq_header.serialize(buf)?;
@@ -97,7 +97,7 @@ pub struct SeqHeader {
     pub record_count: u64,
 }
 
-impl Serde for Option<SeqHeader> {
+impl Serde<'_> for Option<SeqHeader> {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let Some(header) = self else {
             buf.write(0xAA_u8);

@@ -46,7 +46,7 @@ impl Executor for Select<'_> {
     type Item<'a> = Option<Environment>;
 
     fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
-        let object = find_object(ctx, &self.table_name)?;
+        let object = find_object(ctx, self.table_name)?;
         let ObjectType::Table(table) = object.ty else {
             return Err(object_is_not_table(&object));
         };

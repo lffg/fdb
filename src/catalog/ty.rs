@@ -16,7 +16,7 @@ pub enum TypeId {
     Blob = 7,
 }
 
-impl Serde for TypeId {
+impl Serde<'_> for TypeId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
         Ok(())

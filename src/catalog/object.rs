@@ -1,7 +1,7 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::{DbResult, Error},
-    ioutil::{BuffExt, Serde},
+    ioutil::{Serde, VarString},
 };
 
 /// The database object catalog; i.e., the collection of all the objects
@@ -16,7 +16,7 @@ pub struct ObjectSchema {
     pub objects: Vec<Object>,
 }
 
-impl Serde for ObjectSchema {
+impl Serde<'_> for ObjectSchema {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.next_id.serialize(buf)?;
         buf.write(self.object_count);
@@ -60,11 +60,11 @@ pub struct Object {
     pub name: String,
 }
 
-impl Serde for Object {
+impl Serde<'_> for Object {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         self.page_id.serialize(buf)?;
-        buf.write_var_size_string(&self.name)?;
+        VarString::from(self.name.as_str()).serialize(buf)?;
         Ok(())
     }
 
@@ -74,7 +74,7 @@ impl Serde for Object {
     {
         let ty = ObjectType::deserialize(buf)?;
         let page_id = PageId::deserialize(buf)?;
-        let name = buf.read_var_size_string()?;
+        let name = VarString::deserialize(buf)?.into();
         Ok(Object { ty, page_id, name })
     }
 }
@@ -86,7 +86,7 @@ pub enum ObjectType {
     Index,
 }
 
-impl Serde for ObjectType {
+impl Serde<'_> for ObjectType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
         if let ObjectType::Table(table_schema) = self {

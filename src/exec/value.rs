@@ -1,6 +1,10 @@
 use std::{collections::HashMap, fmt};
 
-use crate::{catalog::ty::TypeId, error::DbResult, ioutil::BuffExt};
+use crate::{
+    catalog::ty::TypeId,
+    error::DbResult,
+    ioutil::{Serde, VarBytes, VarString},
+};
 
 pub enum Value {
     Bool(bool),
@@ -39,8 +43,8 @@ impl Value {
             Value::Int(inner) => buf.write(*inner),
             Value::BigInt(inner) => buf.write(*inner),
             Value::Timestamp(inner) => buf.write(*inner),
-            Value::Text(inner) => buf.write_var_size_string(inner)?,
-            Value::Blob(inner) => buf.write_var_size_blob(inner)?,
+            Value::Text(inner) => VarString::from(inner.as_str()).serialize(buf)?,
+            Value::Blob(inner) => VarBytes::from(inner.as_slice()).serialize(buf)?,
         }
         Ok(())
     }
@@ -54,8 +58,8 @@ impl Value {
             TypeId::Int => Value::Int(buf.read()),
             TypeId::BigInt => Value::BigInt(buf.read()),
             TypeId::Timestamp => Value::Timestamp(buf.read()),
-            TypeId::Text => Value::Text(buf.read_var_size_string()?),
-            TypeId::Blob => Value::Blob(buf.read_var_size_blob()?),
+            TypeId::Text => Value::Text(VarString::deserialize(buf)?.into()),
+            TypeId::Blob => Value::Blob(VarBytes::deserialize(buf)?.into()),
         };
         Ok(value)
     }

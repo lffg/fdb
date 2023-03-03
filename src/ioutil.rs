@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use buff::Buff;
 
 use crate::error::{DbResult, Error};
@@ -12,12 +14,12 @@ use crate::error::{DbResult, Error};
 ///
 /// Besides the name inspiration, this has nothing to do with the
 /// [serde](https://serde.rs) crate. :P
-pub trait Serde {
+pub trait Serde<'a> {
     /// Serializes the page.
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()>;
 
     /// Deserializes the page.
-    fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self>
+    fn deserialize(buf: &mut Buff<'a>) -> DbResult<Self>
     where
         Self: Sized;
 }
@@ -27,18 +29,6 @@ pub trait Serde {
 pub trait BuffExt {
     /// Reads `N` bytes and compares it to the given slice.
     fn read_verify_eq<const N: usize>(&mut self, expected: [u8; N]) -> Result<(), ()>;
-
-    /// Reads a variable-length blob, using a 2-byte length field.
-    fn read_var_size_blob(&mut self) -> DbResult<Vec<u8>>;
-
-    /// Writes a variable-length blob, using a 2-byte length field.
-    fn write_var_size_blob(&mut self, blob: &[u8]) -> DbResult<()>;
-
-    /// Reads a variable-length string, using a 2-byte length field.
-    fn read_var_size_string(&mut self) -> DbResult<String>;
-
-    /// Writes a variable-length string, using a 2-byte length field.
-    fn write_var_size_string(&mut self, str: &str) -> DbResult<()>;
 }
 
 impl BuffExt for Buff<'_> {
@@ -52,26 +42,74 @@ impl BuffExt for Buff<'_> {
             Err(())
         }
     }
+}
 
-    fn read_var_size_blob(&mut self) -> DbResult<Vec<u8>> {
-        let len: u16 = self.read();
-        let mut buf = vec![0; len as usize]; // TODO: Optimize using `MaybeUninit`.
-        self.read_slice(&mut buf);
-        Ok(buf)
-    }
+/// Serde wrapper for variable-length serialization format for byte strings.
+pub struct VarBytes<'a>(pub Cow<'a, [u8]>);
 
-    fn write_var_size_blob(&mut self, blob: &[u8]) -> DbResult<()> {
-        self.write::<u16>(blob.len() as u16);
-        self.write_slice(blob);
+impl<'a> Serde<'a> for VarBytes<'a> {
+    fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
+        buf.write::<u16>(self.0.len() as u16);
+        buf.write_slice(&self.0);
         Ok(())
     }
 
-    fn read_var_size_string(&mut self) -> DbResult<String> {
-        self.read_var_size_blob()
-            .and_then(|bytes| String::from_utf8(bytes).map_err(|_| Error::CorruptedUtf8))
-    }
-
-    fn write_var_size_string(&mut self, str: &str) -> DbResult<()> {
-        self.write_var_size_blob(str.as_bytes())
+    fn deserialize(buf: &mut Buff<'_>) -> DbResult<VarBytes<'a>>
+    where
+        Self: Sized,
+    {
+        let len: u16 = buf.read();
+        let mut bytes = vec![0; len as usize]; // TODO: Optimize using `MaybeUninit`.
+        buf.read_slice(&mut bytes);
+        Ok(VarBytes(Cow::Owned(bytes)))
     }
 }
+
+/// [`Serde`] wrapper for variable-length serialization format for strings.
+pub struct VarString<'a>(pub Cow<'a, str>);
+
+impl<'a> Serde<'a> for VarString<'a> {
+    fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
+        VarBytes(Cow::Borrowed(self.0.as_bytes())).serialize(buf)
+    }
+
+    fn deserialize(buf: &mut Buff<'a>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let bytes = VarBytes::deserialize(buf)?.0.into_owned();
+        let string = String::from_utf8(bytes).map_err(|_| Error::CorruptedUtf8)?;
+        Ok(VarString(Cow::Owned(string)))
+    }
+}
+
+macro_rules! impl_from_var {
+    ($borrowed:ty, $owned:ty => $var:ident) => {
+        impl<'a> From<&'a $borrowed> for $var<'a> {
+            fn from(value: &'a $borrowed) -> Self {
+                $var(Cow::Borrowed(value))
+            }
+        }
+
+        impl From<$owned> for $var<'_> {
+            fn from(value: $owned) -> Self {
+                $var(Cow::Owned(value))
+            }
+        }
+
+        impl From<$var<'_>> for $owned {
+            fn from(value: $var<'_>) -> Self {
+                value.0.into_owned()
+            }
+        }
+
+        impl<'a> From<&'a $var<'_>> for &'a $borrowed {
+            fn from(value: &'a $var<'_>) -> Self {
+                &value.0
+            }
+        }
+    };
+}
+
+impl_from_var!([u8], Vec<u8> => VarBytes);
+impl_from_var!(str, String => VarString);

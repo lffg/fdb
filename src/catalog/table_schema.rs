@@ -12,7 +12,7 @@ pub struct TableSchema {
     pub columns: Vec<Column>,
 }
 
-impl Serde for TableSchema {
+impl Serde<'_> for TableSchema {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.column_count);
         debug_assert_eq!(self.column_count as usize, self.columns.len());
