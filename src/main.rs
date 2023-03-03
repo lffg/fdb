@@ -159,7 +159,6 @@ pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbR
 
     first_page.object_schema = ObjectSchema {
         next_id: None,
-        object_count: 1,
         objects: vec![Object {
             ty: ObjectType::Table(get_chess_matches_schema()),
             page_id: first_chess_matches_page_id,
@@ -177,7 +176,6 @@ pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbR
 
 fn get_chess_matches_schema() -> TableSchema {
     TableSchema {
-        column_count: 3,
         columns: vec![
             Column {
                 ty: TypeId::Int,

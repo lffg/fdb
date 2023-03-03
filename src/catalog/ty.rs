@@ -17,6 +17,10 @@ pub enum TypeId {
 }
 
 impl Serde<'_> for TypeId {
+    fn size(&self) -> u32 {
+        1
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
         Ok(())

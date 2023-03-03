@@ -35,6 +35,10 @@ impl Page for FirstPage {
 }
 
 impl Serde<'_> for FirstPage {
+    fn size(&self) -> u32 {
+        self.header.size() + self.object_schema.size()
+    }
+
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         self.object_schema.serialize(buf)?;
@@ -60,7 +64,6 @@ impl FirstPage {
             },
             object_schema: ObjectSchema {
                 next_id: None,
-                object_count: 0,
                 objects: vec![],
             },
         }
@@ -85,6 +88,10 @@ pub struct MainHeader {
 }
 
 impl Serde<'_> for MainHeader {
+    fn size(&self) -> u32 {
+        HEADER_SIZE as u32
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.scoped_exact(HEADER_SIZE, |buf| {
             buf.write_slice(b"fdb format");

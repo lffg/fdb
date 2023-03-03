@@ -33,6 +33,16 @@ impl Page for HeapPage {
 }
 
 impl Serde<'_> for HeapPage {
+    fn size(&self) -> u32 {
+        self.id.size()
+            + self.seq_header.size()
+            + self.next_page_id.size()
+            + 2
+            + 2
+            // Arbitrary bytes without length.
+            + self.bytes.len() as u32
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.id.serialize(buf)?;
         self.seq_header.serialize(buf)?;
@@ -98,6 +108,12 @@ pub struct SeqHeader {
 }
 
 impl Serde<'_> for Option<SeqHeader> {
+    fn size(&self) -> u32 {
+        self.as_ref()
+            .map(|header| header.last_page_id.size() + 4 + 8)
+            .unwrap_or(1 /* discriminant byte */)
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let Some(header) = self else {
             buf.write(0xAA_u8);

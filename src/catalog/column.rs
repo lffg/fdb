@@ -16,6 +16,10 @@ pub struct Column {
 }
 
 impl Serde<'_> for Column {
+    fn size(&self) -> u32 {
+        self.ty.size() + VarString::from(self.name.as_str()).size()
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         VarString::from(self.name.as_str()).serialize(buf)?;

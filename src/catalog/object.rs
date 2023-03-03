@@ -1,7 +1,7 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::{DbResult, Error},
-    ioutil::{Serde, VarString},
+    ioutil::{Serde, VarList, VarString},
 };
 
 /// The database object catalog; i.e., the collection of all the objects
@@ -12,18 +12,17 @@ use crate::{
 #[derive(Debug)]
 pub struct ObjectSchema {
     pub next_id: Option<PageId>,
-    pub object_count: u16,
     pub objects: Vec<Object>,
 }
 
 impl Serde<'_> for ObjectSchema {
+    fn size(&self) -> u32 {
+        self.next_id.size() + VarList::from(self.objects.as_slice()).size()
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.next_id.serialize(buf)?;
-        buf.write(self.object_count);
-        debug_assert_eq!(self.object_count as usize, self.objects.len());
-        for object in &self.objects {
-            object.serialize(buf)?;
-        }
+        VarList::from(self.objects.as_slice()).serialize(buf)?;
         Ok(())
     }
 
@@ -31,15 +30,9 @@ impl Serde<'_> for ObjectSchema {
     where
         Self: Sized,
     {
-        let next_id = Option::<PageId>::deserialize(buf)?;
-        let object_count: u16 = buf.read();
-        let objects: Vec<_> = (0..object_count)
-            .map(|_| Object::deserialize(buf))
-            .collect::<Result<_, _>>()?;
         Ok(ObjectSchema {
-            next_id,
-            object_count,
-            objects,
+            next_id: Option::<PageId>::deserialize(buf)?,
+            objects: VarList::deserialize(buf)?.into(),
         })
     }
 }
@@ -61,6 +54,10 @@ pub struct Object {
 }
 
 impl Serde<'_> for Object {
+    fn size(&self) -> u32 {
+        self.ty.size() + self.page_id.size() + VarString::from(self.name.as_str()).size()
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         self.page_id.serialize(buf)?;
@@ -87,10 +84,17 @@ pub enum ObjectType {
 }
 
 impl Serde<'_> for ObjectType {
+    fn size(&self) -> u32 {
+        1 + match self {
+            ObjectType::Table(schema) => schema.size(),
+            ObjectType::Index => 0,
+        }
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
-        if let ObjectType::Table(table_schema) = self {
-            table_schema.serialize(buf)?;
+        if let ObjectType::Table(schema) = self {
+            schema.serialize(buf)?;
         }
         Ok(())
     }
@@ -102,8 +106,8 @@ impl Serde<'_> for ObjectType {
         let tag: u8 = buf.read();
         match tag {
             0xA => {
-                let table_schema = TableSchema::deserialize(buf)?;
-                Ok(ObjectType::Table(table_schema))
+                let schema = TableSchema::deserialize(buf)?;
+                Ok(ObjectType::Table(schema))
             }
             0xB => Ok(ObjectType::Index),
             _ => Err(Error::CorruptedObjectTypeTag),

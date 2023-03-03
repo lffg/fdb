@@ -59,6 +59,10 @@ where
     <[T] as ToOwned>::Owned: FromIterator<T>,
     T: for<'b> Serde<'b>,
 {
+    fn size(&self) -> u32 {
+        2 + self.0.iter().map(Serde::size).sum::<u32>()
+    }
+
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         let len = u16::try_from(self.0.len()).expect("u16 length");
         buf.write(len);

@@ -61,6 +61,10 @@ impl PageId {
 }
 
 impl Serde<'_> for PageId {
+    fn size(&self) -> u32 {
+        4
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         Some(*self).serialize(buf)
     }
@@ -75,6 +79,10 @@ impl Serde<'_> for PageId {
 }
 
 impl Serde<'_> for Option<PageId> {
+    fn size(&self) -> u32 {
+        4
+    }
+
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let num = self.map(PageId::get).unwrap_or(0);
         buf.write(num);
