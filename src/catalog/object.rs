@@ -18,7 +18,7 @@ pub struct ObjectSchema {
 
 impl Serde for ObjectSchema {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
-        buf.write_page_id(self.next_id);
+        self.next_id.serialize(buf)?;
         buf.write(self.object_count);
         debug_assert_eq!(self.object_count as usize, self.objects.len());
         for object in &self.objects {
@@ -31,7 +31,7 @@ impl Serde for ObjectSchema {
     where
         Self: Sized,
     {
-        let next_id = buf.read_page_id();
+        let next_id = Option::<PageId>::deserialize(buf)?;
         let object_count: u16 = buf.read();
         let objects: Vec<_> = (0..object_count)
             .map(|_| Object::deserialize(buf))
@@ -63,7 +63,7 @@ pub struct Object {
 impl Serde for Object {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
-        buf.write_page_id(Some(self.page_id));
+        self.page_id.serialize(buf)?;
         buf.write_var_size_string(&self.name)?;
         Ok(())
     }
@@ -73,7 +73,7 @@ impl Serde for Object {
         Self: Sized,
     {
         let ty = ObjectType::deserialize(buf)?;
-        let page_id = buf.read_page_id().expect("non-null page id");
+        let page_id = PageId::deserialize(buf)?;
         let name = buf.read_var_size_string()?;
         Ok(Object { ty, page_id, name })
     }

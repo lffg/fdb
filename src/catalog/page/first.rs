@@ -84,13 +84,14 @@ impl Serde for MainHeader {
             buf.write_slice(b"fdb format");
             buf.write(self.file_format_version);
             buf.write(self.page_count);
-            buf.write_page_id(self.first_free_list_page_id);
+            self.first_free_list_page_id.serialize(buf)?;
 
             let rest = HEADER_SIZE - 2 - buf.offset();
             buf.write_bytes(rest, 0);
             buf.write_slice(br"\0");
-        });
-        Ok(())
+
+            Ok::<_, Error>(())
+        })
     }
 
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
@@ -104,7 +105,7 @@ impl Serde for MainHeader {
             let header = MainHeader {
                 file_format_version: buf.read(),
                 page_count: buf.read(),
-                first_free_list_page_id: buf.read_page_id(),
+                first_free_list_page_id: Option::<PageId>::deserialize(buf)?,
             };
 
             buf.seek(HEADER_SIZE - 2);

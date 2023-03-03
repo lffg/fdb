@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::{config::PAGE_SIZE, ioutil::Serde};
+use crate::{config::PAGE_SIZE, error::DbResult, ioutil::Serde};
 
 /// The first page definition.
 mod first;
@@ -57,6 +57,36 @@ impl PageId {
     #[inline]
     pub fn offset(self) -> u64 {
         (self.0.get() as u64 - 1) * PAGE_SIZE
+    }
+}
+
+impl Serde for PageId {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        Some(*self).serialize(buf)
+    }
+
+    /// Must not try to deserialize a null page ID.
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Option::<Self>::deserialize(buf)?.expect("non null page id"))
+    }
+}
+
+impl Serde for Option<PageId> {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        let num = self.map(PageId::get).unwrap_or(0);
+        buf.write(num);
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let num = buf.read();
+        Ok(NonZeroU32::new(num).map(PageId::new))
     }
 }
 

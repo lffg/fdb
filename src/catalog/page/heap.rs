@@ -6,7 +6,7 @@ use crate::{
     catalog::page::{Page, PageId},
     config::PAGE_SIZE,
     error::{DbResult, Error},
-    ioutil::{BuffExt, Serde},
+    ioutil::Serde,
 };
 
 /// The first [`HeapPage`] in the sequence.
@@ -34,9 +34,9 @@ impl Page for HeapPage {
 
 impl Serde for HeapPage {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
-        buf.write_page_id(Some(self.id));
+        self.id.serialize(buf)?;
         self.seq_header.serialize(buf)?;
-        buf.write_page_id(self.next_page_id);
+        self.next_page_id.serialize(buf)?;
         buf.write(self.record_count);
         buf.write(self.free_offset);
         buf.write_slice(&self.bytes);
@@ -54,9 +54,9 @@ impl Serde for HeapPage {
         Self: Sized,
     {
         Ok(HeapPage {
-            id: buf.read_page_id().expect("page id"),
+            id: PageId::deserialize(buf)?,
             seq_header: Option::<SeqHeader>::deserialize(buf)?,
-            next_page_id: buf.read_page_id(),
+            next_page_id: Option::<PageId>::deserialize(buf)?,
             record_count: buf.read(),
             free_offset: buf.read(),
             bytes: {
@@ -104,7 +104,7 @@ impl Serde for Option<SeqHeader> {
             return Ok(());
         };
         buf.write(0xFF_u8);
-        buf.write_page_id(Some(header.last_page_id));
+        header.last_page_id.serialize(buf)?;
         buf.write(header.page_count);
         buf.write(header.record_count);
         Ok(())
@@ -118,7 +118,7 @@ impl Serde for Option<SeqHeader> {
         match discriminant {
             0xAA => Ok(None),
             0xFF => Ok(Some(SeqHeader {
-                last_page_id: buf.read_page_id().expect("last page id"),
+                last_page_id: PageId::deserialize(buf)?,
                 page_count: buf.read(),
                 record_count: buf.read(),
             })),
