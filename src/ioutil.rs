@@ -15,6 +15,9 @@ use crate::error::{DbResult, Error};
 /// Besides the name inspiration, this has nothing to do with the
 /// [serde](https://serde.rs) crate. :P
 pub trait Serde<'a> {
+    /// Returns the size of the serialized representation.
+    fn size(&self) -> u32;
+
     /// Serializes the page.
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()>;
 
@@ -44,10 +47,83 @@ impl BuffExt for Buff<'_> {
     }
 }
 
+/// Serde wrapper for a variable-length record list.
+pub struct VarList<'a, T>(pub Cow<'a, [T]>)
+where
+    [T]: ToOwned;
+
+impl<'a, T> Serde<'a> for VarList<'a, T>
+where
+    [T]: ToOwned,
+    &'a [T]: IntoIterator,
+    <[T] as ToOwned>::Owned: FromIterator<T>,
+    T: for<'b> Serde<'b>,
+{
+    fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
+        let len = u16::try_from(self.0.len()).expect("u16 length");
+        buf.write(len);
+        for item in self.0.iter() {
+            item.serialize(buf)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut Buff<'a>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let len: u16 = buf.read();
+        let inner = (0..len)
+            .map(|_| T::deserialize(buf))
+            .collect::<Result<_, _>>()?;
+        Ok(VarList(Cow::Owned(inner)))
+    }
+}
+
+impl<'a, T> From<&'a [T]> for VarList<'a, T>
+where
+    [T]: ToOwned,
+{
+    fn from(value: &'a [T]) -> Self {
+        VarList(Cow::Borrowed(value))
+    }
+}
+
+impl<T> From<Vec<T>> for VarList<'_, T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn from(value: Vec<T>) -> Self {
+        VarList(Cow::Owned(value))
+    }
+}
+
+impl<'a, T> From<&'a VarList<'_, T>> for &'a [T]
+where
+    [T]: ToOwned,
+{
+    fn from(value: &'a VarList<'_, T>) -> Self {
+        &value.0
+    }
+}
+
+impl<'a, T> From<VarList<'a, T>> for Vec<T>
+where
+    [T]: ToOwned<Owned = Vec<T>>,
+{
+    fn from(value: VarList<'a, T>) -> Self {
+        value.0.into_owned()
+    }
+}
+
 /// Serde wrapper for variable-length serialization format for byte strings.
 pub struct VarBytes<'a>(pub Cow<'a, [u8]>);
 
 impl<'a> Serde<'a> for VarBytes<'a> {
+    fn size(&self) -> u32 {
+        2 + self.0.len() as u32
+    }
+
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         buf.write::<u16>(self.0.len() as u16);
         buf.write_slice(&self.0);
@@ -69,6 +145,10 @@ impl<'a> Serde<'a> for VarBytes<'a> {
 pub struct VarString<'a>(pub Cow<'a, str>);
 
 impl<'a> Serde<'a> for VarString<'a> {
+    fn size(&self) -> u32 {
+        2 + self.0.len() as u32
+    }
+
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         VarBytes(Cow::Borrowed(self.0.as_bytes())).serialize(buf)
     }
