@@ -1,0 +1,12 @@
+[package]
+name = "fdb"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait = "0.1.65"
+buff = { path = "../buff" }
+thiserror = "1.0.38"
+tokio = { workspace = true, features = ["macros", "fs", "io-util"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }

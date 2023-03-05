@@ -1,18 +1,10 @@
 [workspace]
-members = ["buff"]
+members = ["buff", "fdb", "fdb-cli"]
 
-[workspace.dependencies]
-tracing = "0.1.37"
-
-[package]
-name = "fdb"
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 
-[dependencies]
-async-trait = "0.1.65"
-buff = { path = "./buff" }
-thiserror = "1.0.38"
-tokio = { version = "1.26.0", features = ["macros", "rt", "rt-multi-thread", "fs", "io-util"] }
-tracing.workspace = true
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+[workspace.dependencies]
+tokio = "1.26.0"
+tracing = "0.1.37"

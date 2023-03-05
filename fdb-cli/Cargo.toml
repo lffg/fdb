@@ -1,0 +1,10 @@
+[package]
+name = "fdb-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+fdb = { path = "../fdb" }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }

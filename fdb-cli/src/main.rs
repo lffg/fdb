@@ -5,9 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use tracing::info;
-
-use crate::{
+use fdb::{
     catalog::{
         column::Column,
         object::{Object, ObjectSchema, ObjectType},
@@ -18,25 +16,13 @@ use crate::{
     disk_manager::DiskManager,
     error::{DbResult, Error},
     exec::{
+        self,
         value::{Environment, Value},
         ExecCtx, Executor,
     },
     pager::Pager,
 };
-
-mod error;
-
-mod catalog;
-mod config;
-
-mod disk_manager;
-mod pager;
-
-mod exec;
-
-mod util {
-    pub mod io;
-}
+use tracing::info;
 
 #[tokio::main]
 async fn main() -> DbResult<()> {
