@@ -13,13 +13,13 @@ use fdb::{
         table_schema::TableSchema,
         ty::TypeId,
     },
-    disk_manager::DiskManager,
     error::{DbResult, Error},
     exec::{
         self,
         value::{Environment, Value},
         ExecCtx, Executor,
     },
+    io::disk_manager::DiskManager,
     pager::Pager,
 };
 use tracing::info;

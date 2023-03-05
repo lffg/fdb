@@ -4,11 +4,9 @@ use tracing::info;
 use crate::{
     catalog::page::{Page, PageId},
     config::PAGE_SIZE,
-    disk_manager::DiskManager,
     error::DbResult,
+    io::disk_manager::DiskManager,
 };
-
-pub mod cache;
 
 /// The pager, also known as buffer pool manager or as page cache, is a central
 /// part of the database storage engine, being responsible for deciding when and
