@@ -2,11 +2,13 @@
   "version": "0.2",
   "ignorePaths": [],
   "dictionaryDefinitions": [],
+  "caseSensitive": false,
   "dictionaries": [],
   "words": [
     "bruh",
     "bytecode",
     "fdb",
+    "hasher",
     "impls",
     "ioutil",
     "lffg",

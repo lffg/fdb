@@ -1,6 +1,9 @@
 [workspace]
 members = ["buff"]
 
+[workspace.dependencies]
+tracing = "0.1.37"
+
 [package]
 name = "fdb"
 version = "0.1.0"
@@ -9,5 +12,5 @@ edition = "2021"
 [dependencies]
 buff = { path = "./buff" }
 thiserror = "1.0.38"
-tracing = "0.1.37"
+tracing.workspace = true
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
