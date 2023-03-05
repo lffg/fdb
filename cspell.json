@@ -16,6 +16,7 @@
     "repr",
     "Roadmap",
     "thiserror",
+    "tokio",
     "Uninit"
   ],
   "ignoreWords": [],

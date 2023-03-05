@@ -36,15 +36,16 @@ mod exec;
 
 mod ioutil;
 
-fn main() -> DbResult<()> {
+#[tokio::main]
+async fn main() -> DbResult<()> {
     setup_tracing();
 
-    let disk_manager = DiskManager::new(Path::new("ignore/my-db"))?;
+    let disk_manager = DiskManager::new(Path::new("ignore/my-db")).await?;
     let mut pager = Pager::new(disk_manager);
 
-    let mut first_page = load_first_page(&mut pager)?;
+    let mut first_page = load_first_page(&mut pager).await?;
     if let PageState::New(first_page) = &mut first_page {
-        define_test_catalog(&mut pager, first_page)?;
+        define_test_catalog(&mut pager, first_page).await?;
     };
 
     loop {
@@ -67,13 +68,13 @@ fn main() -> DbResult<()> {
                         ("age".into(), Value::Int(age)),
                     ])),
                 );
-                cmd.next(&mut exec_ctx)?;
+                cmd.next(&mut exec_ctx).await?;
                 println!("ok");
             }
             "select" => {
                 let mut cmd = exec::Select::new("chess_matches");
                 println!("{}", "-".repeat(50));
-                while let Some(env) = cmd.next(&mut exec_ctx)? {
+                while let Some(env) = cmd.next(&mut exec_ctx).await? {
                     // Skip logically deleted rows.
                     let Some(row) = env else { continue };
 
@@ -95,15 +96,15 @@ fn main() -> DbResult<()> {
 }
 
 /// Loads the first page, or bootstraps it in the case of first access.
-fn load_first_page(pager: &mut Pager) -> DbResult<PageState<FirstPage>> {
+async fn load_first_page(pager: &mut Pager) -> DbResult<PageState<FirstPage>> {
     let id = PageId::new(1.try_into().unwrap());
 
-    match pager.load(id) {
+    match pager.load(id).await {
         Ok(first_page) => Ok(PageState::Existing(first_page)),
         Err(Error::PageOutOfBounds(_)) => {
             info!("first access; bootstrapping first page");
             let first_page = FirstPage::new();
-            pager.write_flush(&first_page)?;
+            pager.write_flush(&first_page).await?;
             Ok(PageState::New(first_page))
         }
         Err(Error::ReadIncompletePage(_)) => {
@@ -152,7 +153,7 @@ fn input<T: FromStr>(prompt: &str) -> T {
 // TODO: While this database doesn't support user-defined tables (aka. `CREATE
 // TABLE`), during bootstrap, one allocates a specific catalog to use for
 // testing purposes.
-pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResult<()> {
+pub async fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbResult<()> {
     info!("defining test catalog");
 
     let first_chess_matches_page_id = PageId::new_u32(2);
@@ -165,11 +166,11 @@ pub fn define_test_catalog(pager: &mut Pager, first_page: &mut FirstPage) -> DbR
             name: "chess_matches".into(),
         }],
     };
-    pager.write_flush(first_page)?;
+    pager.write_flush(first_page).await?;
 
     let first_chess_matches_table = HeapPage::new(first_chess_matches_page_id);
 
-    pager.write_flush(&first_chess_matches_table)?;
+    pager.write_flush(&first_chess_matches_table).await?;
 
     Ok(())
 }

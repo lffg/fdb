@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use buff::Buff;
 
 use crate::{
@@ -30,8 +31,8 @@ struct IterState {
 }
 
 impl IterState {
-    fn init(pager: &mut Pager, first_page_id: PageId) -> DbResult<Self> {
-        let page: HeapPage = pager.load(first_page_id)?;
+    async fn init(pager: &mut Pager, first_page_id: PageId) -> DbResult<Self> {
+        let page: HeapPage = pager.load(first_page_id).await?;
         let seq_header = page.seq_header.as_ref().expect("first page");
         Ok(Self {
             rem_total: seq_header.record_count,
@@ -42,10 +43,11 @@ impl IterState {
     }
 }
 
+#[async_trait]
 impl Executor for Select<'_> {
     type Item<'a> = Option<Environment>;
 
-    fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, self.table_name)?;
         let ObjectType::Table(table) = object.ty else {
             return Err(object_is_not_table(&object));
@@ -55,7 +57,7 @@ impl Executor for Select<'_> {
             state
         } else {
             self.state
-                .insert(IterState::init(ctx.pager, object.page_id)?)
+                .insert(IterState::init(ctx.pager, object.page_id).await?)
         };
 
         if state.rem_total == 0 {
@@ -66,7 +68,7 @@ impl Executor for Select<'_> {
                 return Ok(None);
             };
             // Load next page.
-            let page: HeapPage = ctx.pager.load(next_page)?;
+            let page: HeapPage = ctx.pager.load(next_page).await?;
             state.rem_page = page.record_count;
             state.offset = 0;
             state.page = Box::new(page);

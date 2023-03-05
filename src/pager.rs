@@ -28,21 +28,21 @@ impl Pager {
     }
 
     /// Given a page ID, fetches it from the disk.
-    pub fn load<P: Page>(&mut self, id: PageId) -> DbResult<P> {
+    pub async fn load<P: Page>(&mut self, id: PageId) -> DbResult<P> {
         info!(?id, "loading page");
 
         // TODO: Use a buffer pool.
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         let mut buf = Buff::new(&mut *buf);
 
-        self.dm.read_page(id, buf.get_mut())?;
+        self.dm.read_page(id, buf.get_mut()).await?;
         let page = P::deserialize(&mut buf)?;
 
         Ok(page)
     }
 
     /// Immediately writes the given page on the disk.
-    pub fn write_flush(&mut self, page: &dyn Page) -> DbResult<()> {
+    pub async fn write_flush(&mut self, page: &(dyn Page + Send + Sync)) -> DbResult<()> {
         let id = page.id();
         info!(?id, "flushing page");
 
@@ -51,6 +51,6 @@ impl Pager {
         let mut buf = Buff::new(&mut *buf);
 
         page.serialize(&mut buf)?;
-        self.dm.write_page(id, buf.get())
+        self.dm.write_page(id, buf.get()).await
     }
 }

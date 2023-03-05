@@ -1,7 +1,11 @@
 use std::{
-    fs::{File, OpenOptions},
-    io::{self, Read, Seek, SeekFrom, Write},
+    io::{self, SeekFrom},
     path::Path,
+};
+
+use tokio::{
+    fs::{File, OpenOptions},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
 use crate::{
@@ -17,13 +21,14 @@ pub struct DiskManager {
 impl DiskManager {
     /// Opens the file at the provided path and constructs a new disk manager
     /// instance that wraps over it.
-    pub fn new(path: &Path) -> DbResult<Self> {
+    pub async fn new(path: &Path) -> DbResult<Self> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             // TODO: Add `O_DIRECT` flag.
-            .open(path)?;
+            .open(path)
+            .await?;
 
         Ok(DiskManager { file })
     }
@@ -34,18 +39,18 @@ impl DiskManager {
     /// # Panics
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
-    pub fn read_page(&mut self, page_id: PageId, buf: &mut [u8]) -> DbResult<()> {
+    pub async fn read_page(&mut self, page_id: PageId, buf: &mut [u8]) -> DbResult<()> {
         assert_eq!(buf.len() as u64, PAGE_SIZE);
 
-        let size = self.file.metadata()?.len();
+        let size = self.file.metadata().await?.len();
         let offset = page_id.offset();
         if offset >= size {
             return Err(Error::PageOutOfBounds(page_id));
         }
 
-        self.file.seek(SeekFrom::Start(page_id.offset()))?;
+        self.file.seek(SeekFrom::Start(page_id.offset())).await?;
 
-        if let Err(error) = self.file.read_exact(buf) {
+        if let Err(error) = self.file.read_exact(buf).await {
             if error.kind() == io::ErrorKind::UnexpectedEof {
                 Err(Error::ReadIncompletePage(page_id))
             } else {
@@ -62,11 +67,11 @@ impl DiskManager {
     /// # Panics
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
-    pub fn write_page(&mut self, page_id: PageId, buf: &[u8]) -> DbResult<()> {
+    pub async fn write_page(&mut self, page_id: PageId, buf: &[u8]) -> DbResult<()> {
         assert_eq!(buf.len() as u64, PAGE_SIZE);
 
-        self.file.seek(SeekFrom::Start(page_id.offset()))?;
-        self.file.write_all(buf)?;
+        self.file.seek(SeekFrom::Start(page_id.offset())).await?;
+        self.file.write_all(buf).await?;
 
         Ok(())
     }

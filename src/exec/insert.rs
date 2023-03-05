@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use buff::Buff;
 
 use crate::{
@@ -19,17 +20,18 @@ pub struct Insert<'s> {
     env: Environment,
 }
 
+#[async_trait]
 impl Executor for Insert<'_> {
     // TODO: Add number of inserted rows.
     type Item<'a> = ();
 
-    fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, self.table_name)?;
         let ObjectType::Table(table) = object.ty else {
             return Err(object_is_not_table(&object));
         };
 
-        let mut page: HeapPage = ctx.pager.load(object.page_id)?;
+        let mut page: HeapPage = ctx.pager.load(object.page_id).await?;
         let seq_header = page.seq_header.as_mut().expect("first page");
 
         if seq_header.last_page_id != object.page_id {
@@ -48,7 +50,7 @@ impl Executor for Insert<'_> {
         page.record_count += 1;
         page.free_offset += u16::try_from(delta).unwrap();
 
-        ctx.pager.write_flush(&page)?;
+        ctx.pager.write_flush(&page).await?;
 
         Ok(None)
     }

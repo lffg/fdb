@@ -1,3 +1,5 @@
+use async_trait::async_trait;
+
 use crate::{catalog::object::ObjectSchema, error::DbResult, pager::Pager};
 
 pub mod common;
@@ -25,9 +27,10 @@ pub struct ExecCtx<'a> {
 ///
 /// The element type `Item` is generic over the lifetime of [`ExecCtx`] since it
 /// may borrow from such a context's fields, especially from the [`Pager`].
+#[async_trait]
 pub trait Executor {
     type Item<'a>;
 
     /// Produces the next value in the stream.
-    fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>>;
+    async fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>>;
 }
