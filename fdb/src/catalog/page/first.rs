@@ -6,7 +6,7 @@ use crate::{
         page::{Page, PageId},
     },
     error::{DbResult, Error},
-    util::io::{BuffExt, Serde},
+    util::io::{read_verify_eq, Serde},
 };
 
 /// The database header size.
@@ -112,8 +112,10 @@ impl Serde<'_> for MainHeader {
         Self: Sized,
     {
         buf.scoped_exact(HEADER_SIZE, |buf| {
-            buf.read_verify_eq::<10>(*b"fdb format")
-                .map_err(|_| Error::CorruptedHeader("start"))?; // header sig
+            // header sig
+            if !read_verify_eq(buf, b"fdb format") {
+                return Err(Error::CorruptedHeader("start"));
+            }
 
             let header = MainHeader {
                 file_format_version: buf.read(),
@@ -122,8 +124,10 @@ impl Serde<'_> for MainHeader {
             };
 
             buf.seek(HEADER_SIZE - 2);
-            buf.read_verify_eq::<2>(*br"\0")
-                .map_err(|_| Error::CorruptedHeader("end"))?; // finish header sig
+            // finish header sig
+            if !read_verify_eq(buf, br"\0") {
+                return Err(Error::CorruptedHeader("end"));
+            }
 
             Ok(header)
         })

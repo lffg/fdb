@@ -27,24 +27,11 @@ pub trait Serde<'a> {
         Self: Sized;
 }
 
-/// Defines methods specific to `fdb`'s implementation as extension methods in
-/// the Buff type, which wouldn't make sense being defined there.
-pub trait BuffExt {
-    /// Reads `N` bytes and compares it to the given slice.
-    fn read_verify_eq<const N: usize>(&mut self, expected: [u8; N]) -> Result<(), ()>;
-}
-
-impl BuffExt for Buff<'_> {
-    fn read_verify_eq<const N: usize>(&mut self, expected: [u8; N]) -> Result<(), ()> {
-        let mut actual = [0; N];
-        self.read_slice(&mut actual);
-
-        if actual == expected {
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
+/// Asserts that the next `expected.len()` bytes are equal to `expected`.
+///
+/// Returns `true` is the read string was correctly verified.
+pub fn read_verify_eq(buf: &mut Buff<'_>, expected: &[u8]) -> bool {
+    expected.iter().all(|byte| *byte == buf.read::<1, u8>())
 }
 
 /// Serde wrapper for a variable-length record list.
