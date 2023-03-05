@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt};
 use crate::{
     catalog::ty::TypeId,
     error::DbResult,
-    ioutil::{Serde, VarBytes, VarString},
+    util::io::{Serde, VarBytes, VarString},
 };
 
 pub enum Value {

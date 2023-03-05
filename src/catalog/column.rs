@@ -1,7 +1,7 @@
 use crate::{
     catalog::ty::TypeId,
     error::DbResult,
-    ioutil::{Serde, VarString},
+    util::io::{Serde, VarString},
 };
 
 /// A column definition.

@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::{config::PAGE_SIZE, error::DbResult, ioutil::Serde};
+use crate::{config::PAGE_SIZE, error::DbResult, util::io::Serde};
 
 /// The first page definition.
 mod first;

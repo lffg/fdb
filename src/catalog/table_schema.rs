@@ -1,7 +1,7 @@
 use crate::{
     catalog::column::Column,
     error::DbResult,
-    ioutil::{Serde, VarList},
+    util::io::{Serde, VarList},
 };
 
 /// A table object schema.

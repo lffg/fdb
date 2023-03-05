@@ -1,7 +1,7 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::{DbResult, Error},
-    ioutil::{Serde, VarList, VarString},
+    util::io::{Serde, VarList, VarString},
 };
 
 /// The database object catalog; i.e., the collection of all the objects

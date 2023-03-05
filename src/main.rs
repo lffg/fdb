@@ -34,7 +34,9 @@ mod pager;
 
 mod exec;
 
-mod ioutil;
+mod util {
+    pub mod io;
+}
 
 #[tokio::main]
 async fn main() -> DbResult<()> {

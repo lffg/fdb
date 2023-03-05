@@ -6,7 +6,7 @@ use crate::{
     catalog::page::{Page, PageId},
     config::PAGE_SIZE,
     error::{DbResult, Error},
-    ioutil::Serde,
+    util::io::Serde,
 };
 
 /// The first [`HeapPage`] in the sequence.

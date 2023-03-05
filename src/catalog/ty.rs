@@ -1,6 +1,6 @@
 use crate::{
     error::{DbResult, Error},
-    ioutil::Serde,
+    util::io::Serde,
 };
 
 /// `fdb` possible value types.

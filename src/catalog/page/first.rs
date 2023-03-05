@@ -6,7 +6,7 @@ use crate::{
         page::{Page, PageId},
     },
     error::{DbResult, Error},
-    ioutil::{BuffExt, Serde},
+    util::io::{BuffExt, Serde},
 };
 
 /// The database header size.
