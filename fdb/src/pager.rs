@@ -8,6 +8,8 @@ use crate::{
     error::DbResult,
 };
 
+pub mod cache;
+
 /// The pager, also known as buffer pool manager or as page cache, is a central
 /// part of the database storage engine, being responsible for deciding when and
 /// which pages are to be loaded and flushed to the disk.
