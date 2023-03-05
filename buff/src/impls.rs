@@ -24,7 +24,7 @@ impl AsBytes for bool {
     type Repr = [u8; 1];
 
     fn serialize(&self) -> Self::Repr {
-        [if *self { 1 } else { 0 }]
+        [u8::from(*self)]
     }
 
     fn deserialize(src: Self::Repr) -> Self {

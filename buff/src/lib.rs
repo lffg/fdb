@@ -132,7 +132,6 @@ impl Buff<'_> {
     /// `count` more bytes.
     ///
     /// This method also increments `self.len` by `count`.
-    #[inline(always)]
     fn slice_to(&mut self, count: usize) -> &mut [u8] {
         let lo = self.offset;
         let hi = lo + count;
