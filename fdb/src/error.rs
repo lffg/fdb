@@ -1,10 +1,10 @@
-use std::io;
+use std::{io, sync::Arc};
 
 use crate::catalog::page::PageId;
 
 pub type DbResult<T, E = Error> = Result<T, E>;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
     /// The given page ID was out of bounds of the database file.
     #[error("page out of bounds ({0:?})")]
@@ -36,5 +36,11 @@ pub enum Error {
 
     /// An generic IO error.
     #[error("io error: {0}")]
-    Io(#[from] io::Error),
+    Io(Arc<io::Error>),
+}
+
+impl From<io::Error> for Error {
+    fn from(value: io::Error) -> Self {
+        Error::Io(Arc::new(value))
+    }
 }

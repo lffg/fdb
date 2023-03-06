@@ -32,8 +32,6 @@ pub trait Page: for<'a> Serde<'a> {
 
     /// Returns the corresponding [`PageId`].
     fn id(&self) -> PageId;
-
-    // TODO: Impl downcast here.
 }
 
 /// The page type.
@@ -88,7 +86,7 @@ impl PageType {
 /// first page at index 1. This allows using the 0-value to encode NULL pages,
 /// i.e., a reference to a page that doesn't exist. Indeed, this same approach
 /// is used by DBMSs such as SQLite.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct PageId(NonZeroU32);
 
@@ -176,4 +174,20 @@ impl<P> PageState<P> {
             PageState::New(inner) | PageState::Existing(inner) => inner,
         }
     }
+}
+
+/// A dynamically-typed database page.
+pub type AnyPage = dyn Page + Send + Sync + 'static;
+
+/// Deserializes the page using the [`PageType`] byte as a discriminant.
+pub fn deserialize_page(buf: &mut buff::Buff<'_>) -> DbResult<Box<AnyPage>> {
+    debug_assert_eq!(buf.offset(), 0);
+
+    let ty = PageType::deserialize(buf)?;
+    buf.seek(0);
+
+    Ok(match ty {
+        PageType::First => Box::new(FirstPage::deserialize(buf)?),
+        PageType::Heap => Box::new(HeapPage::deserialize(buf)?),
+    })
 }

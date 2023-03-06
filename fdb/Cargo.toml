@@ -7,12 +7,13 @@ edition.workspace = true
 async-trait = "0.1.65"
 buff = { path = "../buff" }
 dashmap = "5.4.0"
+drop_bomb = "0.1.5"
 moka = { version = "0.10.0", features = ["future"] }
 thiserror = "1.0.38"
-tokio = { workspace = true, features = ["fs", "io-util"] }
+tokio = { workspace = true, features = ["fs", "io-util", "sync"] }
 tracing.workspace = true
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
 [dev-dependencies.tokio]
 workspace = true
-features = ["macros", "rt-multi-thread", "fs", "io-util"]
+features = ["macros", "rt-multi-thread", "fs", "io-util", "sync"]
