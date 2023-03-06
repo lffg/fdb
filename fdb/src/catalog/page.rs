@@ -15,7 +15,7 @@ mod heap;
 pub use heap::*;
 use tracing::error;
 
-/// A contract that represents an in-memory page.
+/// An in-memory page.
 ///
 /// Since the database engine can interpret the "raw page" sequence of bytes,
 /// there may be many types that map to a page in-memory. Though representing
@@ -23,15 +23,78 @@ use tracing::error;
 /// all of them must expose an [`PageId`], be serializable and deserializable,
 /// etc.
 ///
-/// All `Page` implementation must also implement [`Serde`], so that they may be
-/// serialized and deserialized.
-pub trait Page: for<'a> Serde<'a> {
-    /// Returns the corresponding [`PageType`]. It is always encoded in the
-    /// FIRST byte of the page.
-    fn ty(&self) -> PageType;
+/// All "usable" page implementations of the database may be wrapped in this
+/// enum.
+#[derive(Debug)]
+pub enum Page {
+    First(FirstPage),
+    Heap(HeapPage),
+}
 
-    /// Returns the corresponding [`PageId`].
-    fn id(&self) -> PageId;
+impl Page {
+    /// Returns the [`PageId`].
+    pub fn id(&self) -> PageId {
+        match self {
+            Page::First(inner) => inner.id(),
+            Page::Heap(inner) => inner.id(),
+        }
+    }
+
+    /// Returns the [`PageType`]. It is always encoded in the FIRST byte of the
+    /// page.
+    pub fn ty(&self) -> PageType {
+        match self {
+            Page::First(inner) => inner.ty(),
+            Page::Heap(inner) => inner.ty(),
+        }
+    }
+
+    /// Casts the page reference to a specific page type.
+    #[inline]
+    pub fn cast<T: SpecificPage>(self) -> T {
+        T::cast(self)
+    }
+
+    /// Casts the page reference to a specific page reference type.
+    #[inline]
+    pub fn cast_ref<T: SpecificPage>(&self) -> &T {
+        T::cast_ref(self)
+    }
+
+    /// Casts the page mutable reference to a specific page mutable reference
+    /// type.
+    #[inline]
+    pub fn cast_mut<T: SpecificPage>(&mut self) -> &mut T {
+        T::cast_mut(self)
+    }
+}
+
+impl Serde<'_> for Page {
+    fn size(&self) -> u32 {
+        PAGE_SIZE as u32
+    }
+
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        match self {
+            Page::First(inner) => inner.serialize(buf),
+            Page::Heap(inner) => inner.serialize(buf),
+        }
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        debug_assert_eq!(buf.offset(), 0);
+
+        let ty = PageType::deserialize(buf)?;
+        buf.seek(0);
+
+        Ok(match ty {
+            PageType::First => Page::First(FirstPage::deserialize(buf)?),
+            PageType::Heap => Page::Heap(HeapPage::deserialize(buf)?),
+        })
+    }
 }
 
 /// The page type.
@@ -176,18 +239,71 @@ impl<P> PageState<P> {
     }
 }
 
-/// A dynamically-typed database page.
-pub type AnyPage = dyn Page + Send + Sync + 'static;
+/// Specific page types.
+pub trait SpecificPage {
+    /// Returns the [`PageId`].
+    fn id(&self) -> PageId;
 
-/// Deserializes the page using the [`PageType`] byte as a discriminant.
-pub fn deserialize_page(buf: &mut buff::Buff<'_>) -> DbResult<Box<AnyPage>> {
-    debug_assert_eq!(buf.offset(), 0);
+    /// Returns the [`PageType`].
+    fn ty(&self) -> PageType;
 
-    let ty = PageType::deserialize(buf)?;
-    buf.seek(0);
-
-    Ok(match ty {
-        PageType::First => Box::new(FirstPage::deserialize(buf)?),
-        PageType::Heap => Box::new(HeapPage::deserialize(buf)?),
-    })
+    /// Casts a [`Page`] to the specific type.
+    ///
+    /// The conversion is infallible. An error in a cast indicates a logic bug
+    /// and, as such, panics.
+    fn cast(page: Page) -> Self;
+    fn cast_ref(page: &Page) -> &Self;
+    fn cast_mut(page: &mut Page) -> &mut Self;
 }
+
+impl SpecificPage for Page {
+    fn id(&self) -> PageId {
+        self.id()
+    }
+
+    fn ty(&self) -> PageType {
+        self.ty()
+    }
+
+    #[inline(always)]
+    fn cast(page: Page) -> Self {
+        page
+    }
+
+    #[inline(always)]
+    fn cast_ref(page: &Page) -> &Self {
+        page
+    }
+
+    #[inline(always)]
+    fn cast_mut(page: &mut Page) -> &mut Self {
+        page
+    }
+}
+
+macro_rules! impl_cast_methods {
+    ($page:ident :: $variant:ident => $target:ty) => {
+        fn cast(page: Page) -> $target {
+            if let $page::$variant(inner) = page {
+                inner
+            } else {
+                unreachable!();
+            }
+        }
+        fn cast_ref(page: &Page) -> &$target {
+            if let $page::$variant(inner) = page {
+                inner
+            } else {
+                unreachable!();
+            }
+        }
+        fn cast_mut(page: &mut Page) -> &mut $target {
+            if let $page::$variant(inner) = page {
+                inner
+            } else {
+                unreachable!();
+            }
+        }
+    };
+}
+use impl_cast_methods;

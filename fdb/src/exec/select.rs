@@ -13,7 +13,7 @@ use crate::{
         value::Environment,
         ExecCtx, Executor,
     },
-    pager::Pager,
+    io::pager::Pager,
 };
 
 /// An select command.
@@ -24,20 +24,27 @@ pub struct Select<'a> {
 
 /// Iterator state.
 struct IterState {
-    page: Box<HeapPage>,
+    page: PageId,
     rem_total: u64,
     rem_page: u16,
     offset: u16,
 }
 
 impl IterState {
-    async fn init(pager: &mut Pager, first_page_id: PageId) -> DbResult<Self> {
-        let page: HeapPage = pager.load(first_page_id).await?;
+    async fn init(pager: &Pager, first_page_id: PageId) -> DbResult<Self> {
+        let guard = pager.get::<HeapPage>(first_page_id).await?;
+        let page = guard.read().await;
+
         let seq_header = page.seq_header.as_ref().expect("first page");
+        let rem_total = seq_header.record_count;
+        let rem_page = page.record_count;
+
+        page.release();
+
         Ok(Self {
-            rem_total: seq_header.record_count,
-            rem_page: page.record_count,
-            page: Box::new(page),
+            page: first_page_id,
+            rem_total,
+            rem_page,
             offset: 0,
         })
     }
@@ -47,7 +54,7 @@ impl IterState {
 impl Executor for Select<'_> {
     type Item<'a> = Option<Environment>;
 
-    async fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, ctx: &'a ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, self.table_name)?;
         let ObjectType::Table(table) = object.ty else {
             return Err(object_is_not_table(&object));
@@ -63,18 +70,28 @@ impl Executor for Select<'_> {
         if state.rem_total == 0 {
             return Ok(None);
         }
+
+        let guard = ctx.pager.get::<HeapPage>(state.page).await?;
+        let page = guard.read().await;
+
         if state.rem_page == 0 {
-            let Some(next_page) = state.page.next_page_id else {
+            let Some(next_page) = page.next_page_id else {
                 return Ok(None);
             };
             // Load next page.
-            let page: HeapPage = ctx.pager.load(next_page).await?;
+            let guard = ctx.pager.get::<HeapPage>(next_page).await?;
+            let page = guard.read().await;
             state.rem_page = page.record_count;
             state.offset = 0;
-            state.page = Box::new(page);
+            state.page = next_page;
+            page.release();
         }
 
-        let mut buf = Buff::new(&mut state.page.bytes[state.offset as usize..]);
+        // TODO: HACK: One must be able to create a buf from a shared slice.
+        let mut cloned_buf = page.bytes[state.offset as usize..].to_owned();
+        let mut buf = Buff::new(&mut cloned_buf);
+
+        page.release();
 
         let (delta, result) = buf.delta(|buf| deserialize_table_record(buf, &table));
         state.offset += delta as u16;

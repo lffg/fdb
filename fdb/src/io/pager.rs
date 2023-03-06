@@ -1,5 +1,6 @@
 use std::{
     collections::hash_map::RandomState,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
     sync::Arc,
 };
@@ -14,13 +15,14 @@ use tokio::sync::{
 use tracing::info;
 
 use crate::{
-    catalog::page::{deserialize_page, AnyPage, PageId},
+    catalog::page::{Page, PageId, SpecificPage},
     config::PAGE_SIZE,
     error::{DbResult, Error},
     io::{cache::Cache, disk_manager::DiskManager},
+    util::io::Serde,
 };
 
-type LockedPage = RwLock<Box<AnyPage>>;
+type LockedPage = RwLock<Page>;
 
 type PageNotification = (PageId, PageRefType);
 type PageNotificationSender = mpsc::UnboundedSender<PageNotification>;
@@ -63,12 +65,13 @@ impl Pager {
 
     /// Returns a [`PagerGuard`] for the given page ID. This guard may be used
     /// to lock the page for a write or for a read.
-    pub async fn get(&self, page_id: PageId) -> DbResult<PagerGuard> {
+    pub async fn get<S: SpecificPage>(&self, page_id: PageId) -> DbResult<PagerGuard<S>> {
         let notifier = self.page_status_tx.clone();
         match self.in_use.get(&page_id) {
             Some(page_ref) => Ok(PagerGuard {
                 inner: Arc::clone(&page_ref),
                 notifier,
+                _specific: PhantomData,
             }),
             None => {
                 let inner = self
@@ -78,7 +81,11 @@ impl Pager {
                         Ok(RwLock::new(page))
                     })
                     .await?;
-                Ok(PagerGuard { inner, notifier })
+                Ok(PagerGuard {
+                    inner,
+                    notifier,
+                    _specific: PhantomData,
+                })
             }
         }
     }
@@ -114,16 +121,17 @@ impl Pager {
                 buf.fill(0); // TODO: Revisit this.
                 let mut buf = Buff::new(&mut *buf);
 
-                // In write reads, this lock should never have any contention.
-                debug_assert_eq!(ref_count, 1);
-
                 {
+                    // In write reads, this lock should never have any contention.
+                    debug_assert_eq!(ref_count, 1);
+                    let page = page_arc.read().await;
+
                     // TODO: A failure in serialization may incur in database
                     // file corruption. For example, if page A was successfully
                     // written in an INSERT sequence (A -> B -> C) but B failed
                     // during serialization, the DB becomes inconsistent since A
                     // was written, but B and C were not.
-                    (**page_arc).read().await.serialize(&mut buf)?;
+                    page.serialize(&mut buf)?;
                 }
 
                 {
@@ -142,7 +150,7 @@ impl Pager {
     }
 
     /// Loads the page from the disk.
-    async fn disk_read_page(&self, page_id: PageId) -> DbResult<Box<AnyPage>> {
+    async fn disk_read_page(&self, page_id: PageId) -> DbResult<Page> {
         // TODO: Use a buffer pool.
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         let mut buf = Buff::new(&mut *buf);
@@ -152,47 +160,61 @@ impl Pager {
             dm.read_page(page_id, buf.get_mut()).await?;
         }
 
-        deserialize_page(&mut buf)
+        Page::deserialize(&mut buf)
     }
 }
 
-pub struct PagerGuard {
+/// A page guard over a specific page type of type `S`.
+pub struct PagerGuard<S>
+where
+    S: SpecificPage,
+{
     inner: Arc<LockedPage>,
     notifier: PageNotificationSender,
+    _specific: PhantomData<S>,
 }
 
-impl PagerGuard {
+impl<S> PagerGuard<S>
+where
+    S: SpecificPage,
+{
     /// Locks the page for reading. As the underlying lock is a `RwLock`, other
     /// read references may also exist at the same time.
-    pub async fn read(&self) -> PagerReadGuard<'_> {
+    pub async fn read(&self) -> PagerReadGuard<'_, S> {
         PagerReadGuard {
             guard: self.inner.read().await,
             notifier: self.notifier.clone(),
             bomb: DropBomb::new("forgot to call `release` on pager read guard"),
+            _specific: PhantomData,
         }
     }
 
     /// Locks the page for writing. There may be no other references (read or
     /// write) concurrently.
-    pub async fn write(&self) -> PagerWriteGuard<'_> {
+    pub async fn write(&self) -> PagerWriteGuard<'_, S> {
         PagerWriteGuard {
             guard: self.inner.write().await,
             notifier: self.notifier.clone(),
             bomb: DropBomb::new("forgot to call `flush` on pager write guard"),
+            _specific: PhantomData,
         }
     }
 }
 
 /// A page read guard. Non-exclusive for other read guards.
-pub struct PagerReadGuard<'a> {
-    guard: RwLockReadGuard<'a, Box<AnyPage>>,
+pub struct PagerReadGuard<'a, S> {
+    guard: RwLockReadGuard<'a, Page>,
     notifier: PageNotificationSender,
     bomb: DropBomb,
+    _specific: PhantomData<S>,
 }
 
-impl PagerReadGuard<'_> {
+impl<S> PagerReadGuard<'_, S>
+where
+    S: SpecificPage,
+{
     /// Releases the page reference guard.
-    pub fn release(&mut self) {
+    pub fn release(mut self) {
         self.notifier
             .send((self.guard.id(), PageRefType::Read))
             .expect("receiver must be alive");
@@ -200,24 +222,31 @@ impl PagerReadGuard<'_> {
     }
 }
 
-impl Deref for PagerReadGuard<'_> {
-    type Target = AnyPage;
+impl<S> Deref for PagerReadGuard<'_, S>
+where
+    S: SpecificPage,
+{
+    type Target = S;
 
     fn deref(&self) -> &Self::Target {
-        self.guard.as_ref()
+        self.guard.cast_ref()
     }
 }
 
 /// A page write guard. Exclusive.
-pub struct PagerWriteGuard<'a> {
-    guard: RwLockWriteGuard<'a, Box<AnyPage>>,
+pub struct PagerWriteGuard<'a, S> {
+    guard: RwLockWriteGuard<'a, Page>,
     notifier: PageNotificationSender,
     bomb: DropBomb,
+    _specific: PhantomData<S>,
 }
 
-impl PagerWriteGuard<'_> {
+impl<S> PagerWriteGuard<'_, S>
+where
+    S: SpecificPage,
+{
     /// Releases the page reference guard and **schedules** a flush.
-    pub fn flush(&mut self) {
+    pub fn flush(mut self) {
         self.notifier
             .send((self.guard.id(), PageRefType::Write))
             .expect("receiver must be alive");
@@ -225,17 +254,23 @@ impl PagerWriteGuard<'_> {
     }
 }
 
-impl Deref for PagerWriteGuard<'_> {
-    type Target = AnyPage;
+impl<S> Deref for PagerWriteGuard<'_, S>
+where
+    S: SpecificPage,
+{
+    type Target = S;
 
     fn deref(&self) -> &Self::Target {
-        self.guard.as_ref()
+        self.guard.cast_ref()
     }
 }
 
-impl DerefMut for PagerWriteGuard<'_> {
+impl<S> DerefMut for PagerWriteGuard<'_, S>
+where
+    S: SpecificPage,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.guard.as_mut()
+        self.guard.cast_mut()
     }
 }
 

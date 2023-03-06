@@ -9,7 +9,7 @@ use crate::{
 ///
 /// The database object schema is linked multi-page structure which defines all
 /// database objects.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ObjectSchema {
     pub next_id: Option<PageId>,
     pub objects: Vec<Object>,

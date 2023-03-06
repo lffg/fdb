@@ -1,21 +1,21 @@
 use async_trait::async_trait;
 
-use crate::{catalog::object::ObjectSchema, error::DbResult, pager::Pager};
+use crate::{catalog::object::ObjectSchema, error::DbResult, io::pager::Pager};
 
 pub mod common;
 pub mod serde;
 
 pub mod value;
 
-mod insert;
-pub use insert::*;
+// mod insert;
+// pub use insert::*;
 
 mod select;
 pub use select::*;
 
 /// Execution context.
 pub struct ExecCtx<'a> {
-    pub pager: &'a mut Pager,
+    pub pager: &'a Pager,
     pub object_schema: &'a ObjectSchema,
 }
 
@@ -32,5 +32,5 @@ pub trait Executor {
     type Item<'a>;
 
     /// Produces the next value in the stream.
-    async fn next<'a>(&mut self, ctx: &'a mut ExecCtx) -> DbResult<Option<Self::Item<'a>>>;
+    async fn next<'a>(&mut self, ctx: &'a ExecCtx) -> DbResult<Option<Self::Item<'a>>>;
 }

@@ -3,7 +3,7 @@
 use tracing::error;
 
 use crate::{
-    catalog::page::{Page, PageId, PageType},
+    catalog::page::{Page, PageId, PageType, SpecificPage},
     config::PAGE_SIZE,
     error::{DbResult, Error},
     util::io::Serde,
@@ -24,16 +24,6 @@ pub struct HeapPage {
     pub free_offset: u16,
     /// The record bytes in the page.
     pub bytes: Vec<u8>, // TODO: Review this.
-}
-
-impl Page for HeapPage {
-    fn ty(&self) -> PageType {
-        PageType::Heap
-    }
-
-    fn id(&self) -> PageId {
-        self.id
-    }
 }
 
 impl Serde<'_> for HeapPage {
@@ -82,6 +72,18 @@ impl Serde<'_> for HeapPage {
             },
         })
     }
+}
+
+impl SpecificPage for HeapPage {
+    fn id(&self) -> PageId {
+        self.id
+    }
+
+    fn ty(&self) -> PageType {
+        PageType::Heap
+    }
+
+    super::impl_cast_methods!(Page::Heap => HeapPage);
 }
 
 impl HeapPage {

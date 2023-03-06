@@ -3,7 +3,7 @@ use buff::Buff;
 use crate::{
     catalog::{
         object::ObjectSchema,
-        page::{Page, PageId, PageType},
+        page::{Page, PageId, PageType, SpecificPage},
     },
     error::{DbResult, Error},
     util::io::{read_verify_eq, Serde},
@@ -28,16 +28,6 @@ pub struct FirstPage {
     pub object_schema: ObjectSchema,
 }
 
-impl Page for FirstPage {
-    fn ty(&self) -> PageType {
-        PageType::First
-    }
-
-    fn id(&self) -> PageId {
-        PageId::new(1.try_into().unwrap())
-    }
-}
-
 impl Serde<'_> for FirstPage {
     fn size(&self) -> u32 {
         // One doesn't need to contabilize the type byte here, since the
@@ -58,6 +48,18 @@ impl Serde<'_> for FirstPage {
             object_schema: ObjectSchema::deserialize(buf)?,
         })
     }
+}
+
+impl SpecificPage for FirstPage {
+    fn id(&self) -> PageId {
+        PageId::new_u32(1)
+    }
+
+    fn ty(&self) -> PageType {
+        PageType::First
+    }
+
+    super::impl_cast_methods!(Page::First => FirstPage);
 }
 
 impl FirstPage {
