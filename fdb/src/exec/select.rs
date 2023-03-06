@@ -35,9 +35,9 @@ impl IterState {
         let guard = pager.get::<HeapPage>(first_page_id).await?;
         let page = guard.read().await;
 
-        let seq_header = page.seq_header.as_ref().expect("first page");
+        let seq_header = page.header.seq_header.as_ref().expect("first page");
         let rem_total = seq_header.record_count;
-        let rem_page = page.record_count;
+        let rem_page = page.header.record_count;
 
         page.release();
 
@@ -75,13 +75,13 @@ impl Executor for Select<'_> {
         let page = guard.read().await;
 
         if state.rem_page == 0 {
-            let Some(next_page) = page.next_page_id else {
+            let Some(next_page) = page.header.next_page_id else {
                 return Ok(None);
             };
             // Load next page.
             let guard = ctx.pager.get::<HeapPage>(next_page).await?;
             let page = guard.read().await;
-            state.rem_page = page.record_count;
+            state.rem_page = page.header.record_count;
             state.offset = 0;
             state.page = next_page;
             page.release();

@@ -12,10 +12,10 @@ use tokio::sync::{
     mpsc::{self},
     Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use tracing::info;
+use tracing::{info, instrument};
 
 use crate::{
-    catalog::page::{Page, PageId, SpecificPage},
+    catalog::page::{FirstPage, Page, PageId, SpecificPage},
     config::PAGE_SIZE,
     error::{DbResult, Error},
     io::{cache::Cache, disk_manager::DiskManager},
@@ -81,6 +81,7 @@ impl Pager {
                         Ok(RwLock::new(page))
                     })
                     .await?;
+                self.in_use.insert(page_id, Arc::clone(&inner));
                 Ok(PagerGuard {
                     inner,
                     notifier,
@@ -94,6 +95,7 @@ impl Pager {
     // TODO: Review this design, which imposes read-only queries to call
     // `flush_all` in order to clean the used records from `in_use`. Ideally,
     // such a map's READ entries should be removed when the guard drops.
+    #[instrument(skip_all)]
     pub async fn flush_all(&self) -> DbResult<()> {
         // TODO: Use a buffer pool.
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
@@ -111,6 +113,7 @@ impl Pager {
             let ref_count = Arc::strong_count(&*page_arc);
             info!(?page_id, ?ref_count, "page ref count");
 
+            // TODO: FIXME: This number (1) is wrong.
             if ref_count == 1 {
                 // If strong count is 1, it was the last page reference.
                 // Hence, it may be removed from the map.
@@ -123,7 +126,7 @@ impl Pager {
 
                 {
                     // In write reads, this lock should never have any contention.
-                    debug_assert_eq!(ref_count, 1);
+                    // ----------- fixme debug_assert_eq!(ref_count, 1);
                     let page = page_arc.read().await;
 
                     // TODO: A failure in serialization may incur in database
@@ -147,6 +150,82 @@ impl Pager {
                 flush_count += 1;
             }
         }
+    }
+
+    /// Allocates a new page, returning a [`PagerGuard`] to it. The page is
+    /// flushed.
+    ///
+    /// # Deadlock
+    ///
+    /// This method acquires a write latch to the first page. Hence, callers
+    /// must guarantee that there are no other active guards (read or write) to
+    /// the first page.
+    #[instrument(skip_all)]
+    pub async fn alloc<S: SpecificPage>(&self) -> DbResult<PagerGuard<S>> {
+        let ty = S::ty();
+        info!(?ty, "allocating page");
+
+        let p1g = self.get::<FirstPage>(PageId::new_u32(1)).await?;
+        let mut p1 = p1g.write().await;
+
+        p1.header.page_count += 1;
+
+        let id = PageId::new_u32(p1.header.page_count);
+        let init = S::default_with_id(id);
+
+        // SAFETY: Metadata was changed above.
+        unsafe { self.flush_page(&init) }.await?;
+
+        info!("flushing first page metadata...");
+        p1.flush();
+
+        let guard_inner = Arc::new(RwLock::new(init.into_page()));
+        self.in_use.insert(id, Arc::clone(&guard_inner));
+        info!(?id, "page allocated");
+        Ok(PagerGuard {
+            inner: guard_inner,
+            notifier: self.page_status_tx.clone(),
+            _specific: PhantomData,
+        })
+    }
+
+    /// Writes the given page to the database, skipping *all* cache layers.
+    ///
+    /// Most of the times, this method shouldn't be used directly. Instead,
+    /// prefer the safer `alloc` method.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the database consistency. For example, this
+    /// method doesn't update the metadata in the first page.
+    pub async unsafe fn flush_page(&self, page: &impl SpecificPage) -> DbResult<()> {
+        // TODO: Use a buffer pool.
+        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = Buff::new(&mut *buf);
+
+        page.serialize(&mut buf)?;
+
+        info!("flushing new page...");
+        // Does one need to flush here if the page will be modified again
+        // after the allocation? The rationale for flushing here is that the
+        // first page was flushed to reflect the just-allocated page. Hence,
+        // one needs to flush such a new page.
+        self.disk_manager
+            .lock() // <--- I think this *may* deadlock. :thinking:
+            .await
+            .write_page(page.id(), buf.get())
+            .await
+    }
+
+    /// Clears all cache information associated with the given page ID.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that there are no other alive references to the
+    /// given page.
+    pub async unsafe fn clear_cache(&self, page_id: PageId) {
+        self.in_use.remove(&page_id);
+        self.cache.evict(&page_id).await;
     }
 
     /// Loads the page from the disk.
@@ -181,6 +260,7 @@ where
     /// Locks the page for reading. As the underlying lock is a `RwLock`, other
     /// read references may also exist at the same time.
     pub async fn read(&self) -> PagerReadGuard<'_, S> {
+        info!(ty = ?S::ty(), "acquiring read guard");
         PagerReadGuard {
             guard: self.inner.read().await,
             notifier: self.notifier.clone(),
@@ -192,6 +272,7 @@ where
     /// Locks the page for writing. There may be no other references (read or
     /// write) concurrently.
     pub async fn write(&self) -> PagerWriteGuard<'_, S> {
+        info!(ty = ?S::ty(), "acquiring write guard");
         PagerWriteGuard {
             guard: self.inner.write().await,
             notifier: self.notifier.clone(),
@@ -219,6 +300,7 @@ where
             .send((self.guard.id(), PageRefType::Read))
             .expect("receiver must be alive");
         self.bomb.defuse();
+        info!(ty = ?S::ty(), "released read guard");
     }
 }
 
@@ -251,6 +333,7 @@ where
             .send((self.guard.id(), PageRefType::Write))
             .expect("receiver must be alive");
         self.bomb.defuse();
+        info!(ty = ?S::ty(), "flushed write guard");
     }
 }
 

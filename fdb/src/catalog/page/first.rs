@@ -51,20 +51,17 @@ impl Serde<'_> for FirstPage {
 }
 
 impl SpecificPage for FirstPage {
+    fn ty() -> PageType {
+        PageType::First
+    }
+
     fn id(&self) -> PageId {
         PageId::new_u32(1)
     }
 
-    fn ty(&self) -> PageType {
-        PageType::First
-    }
+    fn default_with_id(page_id: PageId) -> Self {
+        assert_eq!(page_id.get(), 1, "first page must have page id 1");
 
-    super::impl_cast_methods!(Page::First => FirstPage);
-}
-
-impl FirstPage {
-    /// Constructs a new page.
-    pub fn new() -> Self {
         Self {
             header: MainHeader {
                 file_format_version: 1,
@@ -77,12 +74,8 @@ impl FirstPage {
             },
         }
     }
-}
 
-impl Default for FirstPage {
-    fn default() -> Self {
-        Self::new()
-    }
+    super::impl_cast_methods!(Page::First => FirstPage);
 }
 
 /// The database header.

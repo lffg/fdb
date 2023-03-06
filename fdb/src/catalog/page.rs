@@ -1,4 +1,7 @@
-use std::num::NonZeroU32;
+use std::{
+    num::NonZeroU32,
+    ops::{Add, AddAssign},
+};
 
 use crate::{
     config::PAGE_SIZE,
@@ -44,8 +47,8 @@ impl Page {
     /// page.
     pub fn ty(&self) -> PageType {
         match self {
-            Page::First(inner) => inner.ty(),
-            Page::Heap(inner) => inner.ty(),
+            Page::First(_) => FirstPage::ty(),
+            Page::Heap(_) => HeapPage::ty(),
         }
     }
 
@@ -154,27 +157,47 @@ impl PageType {
 pub struct PageId(NonZeroU32);
 
 impl PageId {
+    /// The first page ID.
+    pub const FIRST: PageId = PageId::new_u32(1);
+
     /// Constructs a new [`PageId`] using the given page number.
-    pub fn new(page_number: NonZeroU32) -> Self {
+    pub const fn new(page_number: NonZeroU32) -> Self {
         PageId(page_number)
     }
 
     /// Constructs a new [`PageId`] using the given page number.
     ///
     /// Panics if received zero.
-    pub fn new_u32(page_number: u32) -> Self {
-        Self::new(page_number.try_into().unwrap())
+    pub const fn new_u32(page_number: u32) -> Self {
+        if page_number == 0 {
+            panic!("cannot construct page number with 0");
+        }
+        PageId(unsafe { NonZeroU32::new_unchecked(page_number) })
     }
 
     /// Returns the underlying page id.
-    pub fn get(self) -> u32 {
+    pub const fn get(self) -> u32 {
         self.0.get()
     }
 
     /// Returns the 0-based page offset, commonly used in disk seek operations.
     #[inline]
-    pub fn offset(self) -> u64 {
+    pub const fn offset(self) -> u64 {
         (self.0.get() as u64 - 1) * PAGE_SIZE
+    }
+}
+
+impl Add<u32> for PageId {
+    type Output = PageId;
+
+    fn add(self, rhs: u32) -> Self::Output {
+        PageId::new_u32(self.get() + rhs)
+    }
+}
+
+impl AddAssign<u32> for PageId {
+    fn add_assign(&mut self, rhs: u32) {
+        *self = *self + rhs
     }
 }
 
@@ -216,53 +239,42 @@ impl Serde<'_> for Option<PageId> {
     }
 }
 
-/// Represents a state in which a page may be returned (e.g. by the
-/// [`crate::Pager`]).
-pub enum PageState<P> {
-    New(P),
-    Existing(P),
-}
-
-impl<P> PageState<P> {
-    /// Returns the underlying page.
-    pub fn _into_inner(self) -> P {
-        match self {
-            PageState::New(inner) | PageState::Existing(inner) => inner,
-        }
-    }
-
-    /// Returns a reference to the underlying page.
-    pub fn get(&self) -> &P {
-        match &self {
-            PageState::New(inner) | PageState::Existing(inner) => inner,
-        }
-    }
-}
-
 /// Specific page types.
-pub trait SpecificPage {
+pub trait SpecificPage: Sized + for<'a> Serde<'a> {
+    /// Returns the [`PageType`].
+    fn ty() -> PageType;
+
     /// Returns the [`PageId`].
     fn id(&self) -> PageId;
 
-    /// Returns the [`PageType`].
-    fn ty(&self) -> PageType;
+    /// Converts the specific page type into [`Page`].
+    fn into_page(self) -> Page;
 
     /// Casts a [`Page`] to the specific type.
-    ///
-    /// The conversion is infallible. An error in a cast indicates a logic bug
-    /// and, as such, panics.
     fn cast(page: Page) -> Self;
+
+    /// Casts a [`Page`] reference to the specific type.
     fn cast_ref(page: &Page) -> &Self;
+
+    /// Casts a [`Page`] mutable reference to the specific type.
     fn cast_mut(page: &mut Page) -> &mut Self;
+
+    /// Returns a default page with the provided [`PageId`].
+    fn default_with_id(page_id: PageId) -> Self;
 }
 
 impl SpecificPage for Page {
+    fn ty() -> PageType {
+        unimplemented!("must call on specific page type");
+    }
+
     fn id(&self) -> PageId {
         self.id()
     }
 
-    fn ty(&self) -> PageType {
-        self.ty()
+    #[inline(always)]
+    fn into_page(self) -> Self {
+        self
     }
 
     #[inline(always)]
@@ -279,10 +291,18 @@ impl SpecificPage for Page {
     fn cast_mut(page: &mut Page) -> &mut Self {
         page
     }
+
+    fn default_with_id(_page_id: PageId) -> Self {
+        unimplemented!("must use specific page type to construct a default page");
+    }
 }
 
 macro_rules! impl_cast_methods {
     ($page:ident :: $variant:ident => $target:ty) => {
+        fn into_page(self) -> Page {
+            $page::$variant(self)
+        }
+
         fn cast(page: Page) -> $target {
             if let $page::$variant(inner) = page {
                 inner

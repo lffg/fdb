@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::{self, Write},
     path::Path,
     str::FromStr,
@@ -7,12 +8,17 @@ use std::{
 use fdb::{
     catalog::{
         column::Column,
-        page::{FirstPage, PageId},
+        object::{Object, ObjectSchema, ObjectType},
+        page::{FirstPage, HeapPage, PageId, SpecificPage},
         table_schema::TableSchema,
         ty::TypeId,
     },
     error::{DbResult, Error},
-    exec::{self, ExecCtx, Executor},
+    exec::{
+        self,
+        value::{Environment, Value},
+        ExecCtx, Executor,
+    },
     io::{
         disk_manager::DiskManager,
         pager::{Pager, PagerGuard},
@@ -27,9 +33,13 @@ async fn main() -> DbResult<()> {
     let disk_manager = DiskManager::new(Path::new("ignore/my-db")).await?;
     let mut pager = Pager::new(disk_manager);
 
-    let first_page_guard = boot_first_page(&mut pager).await?;
-    let first_page = first_page_guard.read().await;
+    let (first_page_guard, is_new) = boot_first_page(&mut pager).await?;
+    if is_new {
+        define_test_catalog(&pager).await?;
+    }
 
+    info!("getting schema...");
+    let first_page = first_page_guard.read().await;
     let schema = first_page.object_schema.clone();
     first_page.release();
 
@@ -42,18 +52,18 @@ async fn main() -> DbResult<()> {
         println!("Pick a command: `insert`, `select` or `quit`.");
         match &*input::<String>("cmd> ") {
             "insert" => {
-                let _id: i32 = input("id (int)> ");
-                let _name: String = input("name (text)> ");
-                let _age: i32 = input("age (int)> ");
-                // let mut cmd = exec::Insert::new(
-                //     "chess_matches",
-                //     Environment::from(HashMap::from([
-                //         ("id".into(), Value::Int(id)),
-                //         ("name".into(), Value::Text(name)),
-                //         ("age".into(), Value::Int(age)),
-                //     ])),
-                // );
-                // cmd.next(&mut exec_ctx).await?;
+                let id: i32 = input("id (int)> ");
+                let name: String = input("name (text)> ");
+                let age: i32 = input("age (int)> ");
+                let mut cmd = exec::Insert::new(
+                    "chess_matches",
+                    Environment::from(HashMap::from([
+                        ("id".into(), Value::Int(id)),
+                        ("name".into(), Value::Text(name)),
+                        ("age".into(), Value::Int(age)),
+                    ])),
+                );
+                cmd.next(&exec_ctx).await?;
                 println!("ok");
             }
             "select" => {
@@ -81,15 +91,23 @@ async fn main() -> DbResult<()> {
 }
 
 /// Loads the first page, or bootstraps it in the case of first access.
-async fn boot_first_page(pager: &mut Pager) -> DbResult<PagerGuard<FirstPage>> {
-    let id = PageId::new_u32(1);
-
-    match pager.get::<FirstPage>(id).await {
-        Ok(guard) => Ok(guard),
+///
+/// It also returns a boolean that, if true, indicates that the page was booted
+/// for the first time.
+async fn boot_first_page(pager: &mut Pager) -> DbResult<(PagerGuard<FirstPage>, bool)> {
+    match pager.get::<FirstPage>(PageId::FIRST).await {
+        Ok(guard) => Ok((guard, false)),
         Err(Error::PageOutOfBounds(_)) => {
             info!("first access; booting first page");
-            let _first_page = FirstPage::new();
-            todo!("boot");
+
+            let first_page = FirstPage::default_with_id(PageId::FIRST);
+            // SAFETY: This is the first page, no metadata is needed, yet.
+            unsafe {
+                pager.clear_cache(PageId::FIRST).await;
+                pager.flush_page(&first_page).await?;
+            };
+
+            Ok((pager.get::<FirstPage>(PageId::FIRST).await?, true))
         }
         Err(Error::ReadIncompletePage(_)) => {
             panic!("corrupt database file");
@@ -137,29 +155,33 @@ fn input<T: FromStr>(prompt: &str) -> T {
 // TODO: While this database doesn't support user-defined tables (aka. `CREATE
 // TABLE`), during bootstrap, one allocates a specific catalog to use for
 // testing purposes.
-pub async fn define_test_catalog(_pager: &mut Pager, _first_page: &mut FirstPage) -> DbResult<()> {
-    todo!();
-    // info!("defining test catalog");
+pub async fn define_test_catalog(pager: &Pager) -> DbResult<()> {
+    info!("defining test catalog");
 
-    // let first_chess_matches_page_id = PageId::new_u32(2);
+    let seq_first_guard = pager.alloc::<HeapPage>().await?;
+    let seq_first = seq_first_guard.write().await;
 
-    // first_page.object_schema = ObjectSchema {
-    //     next_id: None,
-    //     objects: vec![Object {
-    //         ty: ObjectType::Table(get_chess_matches_schema()),
-    //         page_id: first_chess_matches_page_id,
-    //         name: "chess_matches".into(),
-    //     }],
-    // };
-    // pager.write_flush(first_page).await?;
+    let first_page_guard = pager.get::<FirstPage>(PageId::FIRST).await?;
+    let mut first_page = first_page_guard.write().await;
 
-    // let first_chess_matches_table =
-    // HeapPage::new(first_chess_matches_page_id);
+    first_page.object_schema = ObjectSchema {
+        next_id: None,
+        objects: vec![Object {
+            ty: ObjectType::Table(get_chess_matches_schema()),
+            page_id: seq_first.id(),
+            name: "chess_matches".into(),
+        }],
+    };
 
-    // pager.write_flush(&first_chess_matches_table).await?;
+    first_page.flush();
+    seq_first.flush();
+
+    pager.flush_all().await?;
+
+    Ok(())
 }
 
-fn _get_chess_matches_schema() -> TableSchema {
+fn get_chess_matches_schema() -> TableSchema {
     TableSchema {
         columns: vec![
             Column {

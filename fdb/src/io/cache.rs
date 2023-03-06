@@ -6,7 +6,6 @@ use std::{
 };
 
 use moka::future::Cache as MokaCache;
-use tracing::info;
 
 /// A
 pub struct Cache<K, V, S = RandomState> {
@@ -38,12 +37,7 @@ where
         self.inner
             .try_get_with(key, async { init.await.map(Arc::new) })
             .await
-            .map_err(|err| {
-                Arc::try_unwrap(err).unwrap_or_else(|arc| {
-                    info!("cloning error from cache load");
-                    (*arc).clone()
-                })
-            })
+            .map_err(|err| (*err).clone())
     }
 
     /// Evicts the element for the given key.

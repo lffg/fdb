@@ -7,8 +7,8 @@ pub mod serde;
 
 pub mod value;
 
-// mod insert;
-// pub use insert::*;
+mod insert;
+pub use insert::*;
 
 mod select;
 pub use select::*;
