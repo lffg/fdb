@@ -3,7 +3,7 @@
 use tracing::error;
 
 use crate::{
-    catalog::page::{Page, PageId},
+    catalog::page::{Page, PageId, PageType},
     config::PAGE_SIZE,
     error::{DbResult, Error},
     util::io::Serde,
@@ -27,6 +27,10 @@ pub struct HeapPage {
 }
 
 impl Page for HeapPage {
+    fn ty(&self) -> PageType {
+        PageType::Heap
+    }
+
     fn id(&self) -> PageId {
         self.id
     }
@@ -34,16 +38,17 @@ impl Page for HeapPage {
 
 impl Serde<'_> for HeapPage {
     fn size(&self) -> u32 {
-        self.id.size()
+        self.ty().size()
+            + self.id.size()
             + self.seq_header.size()
             + self.next_page_id.size()
             + 2
             + 2
-            // Arbitrary bytes without length.
             + self.bytes.len() as u32
     }
 
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        self.ty().serialize(buf)?;
         self.id.serialize(buf)?;
         self.seq_header.serialize(buf)?;
         self.next_page_id.serialize(buf)?;
@@ -63,6 +68,7 @@ impl Serde<'_> for HeapPage {
     where
         Self: Sized,
     {
+        assert_eq!(PageType::deserialize(buf)?, PageType::Heap);
         Ok(HeapPage {
             id: PageId::deserialize(buf)?,
             seq_header: Option::<SeqHeader>::deserialize(buf)?,

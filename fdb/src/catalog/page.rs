@@ -1,6 +1,10 @@
 use std::num::NonZeroU32;
 
-use crate::{config::PAGE_SIZE, error::DbResult, util::io::Serde};
+use crate::{
+    config::PAGE_SIZE,
+    error::{DbResult, Error},
+    util::io::Serde,
+};
 
 /// The first page definition.
 mod first;
@@ -9,6 +13,7 @@ pub use first::*;
 /// The heap page definition.
 mod heap;
 pub use heap::*;
+use tracing::error;
 
 /// A contract that represents an in-memory page.
 ///
@@ -21,8 +26,60 @@ pub use heap::*;
 /// All `Page` implementation must also implement [`Serde`], so that they may be
 /// serialized and deserialized.
 pub trait Page: for<'a> Serde<'a> {
+    /// Returns the corresponding [`PageType`]. It is always encoded in the
+    /// FIRST byte of the page.
+    fn ty(&self) -> PageType;
+
     /// Returns the corresponding [`PageId`].
     fn id(&self) -> PageId;
+
+    // TODO: Impl downcast here.
+}
+
+/// The page type.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum PageType {
+    /// See [`FirstPage`].
+    ///
+    /// `0x66` represents the lowercase `f` character, the first byte of the
+    /// first page's global header `"fdb format"` sequence.
+    First = 0x66,
+    /// See [`HeapPage`].
+    Heap = 0x01,
+}
+
+impl Serde<'_> for PageType {
+    fn size(&self) -> u32 {
+        1
+    }
+
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
+        buf.write(*self as u8);
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let tag: u8 = buf.read();
+        match tag {
+            0x66 => Ok(PageType::First),
+            0x01 => Ok(PageType::Heap),
+            unexpected => {
+                error!(?unexpected, "invalid `PageType` type discriminant");
+                Err(Error::CorruptedTypeTag)
+            }
+        }
+    }
+}
+
+impl PageType {
+    /// Returns the tag associated with the `HeapPageId`.
+    pub const fn discriminant(self) -> u8 {
+        self as u8
+    }
 }
 
 /// A wrapper that represents a page id.

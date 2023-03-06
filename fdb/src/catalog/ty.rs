@@ -1,3 +1,5 @@
+use tracing::error;
+
 use crate::{
     error::{DbResult, Error},
     util::io::Serde,
@@ -40,15 +42,18 @@ impl Serde<'_> for TypeId {
             5 => Ok(TypeId::Timestamp),
             6 => Ok(TypeId::Text),
             7 => Ok(TypeId::Blob),
-            _ => Err(Error::CorruptedTypeTag),
+            unexpected => {
+                error!(?unexpected, "invalid `TypeId` type discriminant");
+                Err(Error::CorruptedTypeTag)
+            }
         }
     }
 }
 
 impl TypeId {
     /// Returns the tag associated with the `HeapPageId`.
-    pub const fn discriminant(&self) -> u8 {
-        *self as u8
+    pub const fn discriminant(self) -> u8 {
+        self as u8
     }
 
     /// Returns the canonical type name.
