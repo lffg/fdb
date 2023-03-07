@@ -92,7 +92,7 @@ impl Pager {
     }
 
     /// Flushes all available pages.
-    // TODO: Review this design, which imposes read-only queries to call
+    // XX: Review this design, which imposes read-only queries to call
     // `flush_all` in order to clean the used records from `in_use`. Ideally,
     // such a map's READ entries should be removed when the guard drops.
     #[instrument(skip_all)]
@@ -121,7 +121,6 @@ impl Pager {
             }
 
             if ref_type == PageRefType::Write {
-                buf.fill(0); // TODO: Revisit this.
                 let mut buf = Buff::new(&mut *buf);
 
                 {
@@ -129,12 +128,15 @@ impl Pager {
                     // ----------- fixme debug_assert_eq!(ref_count, 1);
                     let page = page_arc.read().await;
 
-                    // TODO: A failure in serialization may incur in database
-                    // file corruption. For example, if page A was successfully
-                    // written in an INSERT sequence (A -> B -> C) but B failed
-                    // during serialization, the DB becomes inconsistent since A
-                    // was written, but B and C were not.
+                    // TODO: FIXME: A failure in serialization may incur in
+                    // database file corruption. For example, if page A was
+                    // successfully written in an INSERT sequence (A -> B -> C)
+                    // but B failed during serialization, the DB becomes
+                    // inconsistent since A was written, but B and C were not.
                     page.serialize(&mut buf)?;
+
+                    // `serialize` should fill the buffer.
+                    debug_assert_eq!(buf.remaining(), 0);
                 }
 
                 {

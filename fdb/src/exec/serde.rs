@@ -41,10 +41,9 @@ pub fn serialize_table_record(
 
 /// Deserializes the record from the given `buf` into an [`Environment`] record.
 ///
-/// TODO: Is [`Environment`] the best type to be returned by this function?
-///
 /// The first byte is used to determine the record's "aliveness". If the record
 /// is marked as delete, `None` is returned.
+// XX: Is [`Environment`] the best type to be returned by this function?
 pub fn deserialize_table_record(
     buf: &mut Buff<'_>,
     schema: &TableSchema,

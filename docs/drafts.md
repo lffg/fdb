@@ -1,6 +1,5 @@
 # TODO
 
-- [ ] TODO: P0: Remove `ordinary_page` field from first_page.
 - [ ] Save `PAGE_SIZE` and `IDENTIFIER_SIZE` in the header. Also, parameterize
       them for testing purposes.
 - [ ] TODO: Add error context.

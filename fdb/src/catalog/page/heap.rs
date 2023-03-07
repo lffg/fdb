@@ -15,7 +15,7 @@ pub struct HeapPage {
     /// The page header.
     pub header: Header,
     /// The record bytes in the page.
-    pub bytes: Vec<u8>, // TODO: Review this.
+    pub bytes: Vec<u8>, // XX: Review this.
 }
 
 impl Serde<'_> for HeapPage {

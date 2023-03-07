@@ -20,7 +20,7 @@ pub fn find_object<'a>(ctx: &ExecCtx<'a>, name: &str) -> DbResult<Object> {
 
     while object.is_none() && next.is_some() {
         info!("next page");
-        todo!("todo: implement next object schema page");
+        todo!("TODO: implement next object schema page");
     }
 
     object.ok_or_else(|| Error::ExecError(format!("table object `{name}` does not exist")))
