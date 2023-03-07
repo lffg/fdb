@@ -13,16 +13,13 @@ use fdb::{
         table_schema::TableSchema,
         ty::TypeId,
     },
-    error::{DbResult, Error},
+    error::DbResult,
     exec::{
         self,
         value::{Environment, Value},
         ExecCtx, Executor,
     },
-    io::{
-        disk_manager::DiskManager,
-        pager::{Pager, PagerGuard},
-    },
+    io::{bootstrap, disk_manager::DiskManager, pager::Pager},
 };
 use tracing::info;
 
@@ -33,7 +30,7 @@ async fn main() -> DbResult<()> {
     let disk_manager = DiskManager::new(Path::new("ignore/my-db")).await?;
     let mut pager = Pager::new(disk_manager);
 
-    let (first_page_guard, is_new) = boot_first_page(&mut pager).await?;
+    let (first_page_guard, is_new) = bootstrap::boot_first_page(&mut pager).await?;
     if is_new {
         define_test_catalog(&pager).await?;
     }
@@ -88,32 +85,6 @@ async fn main() -> DbResult<()> {
     }
 
     Ok(())
-}
-
-/// Loads the first page, or bootstraps it in the case of first access.
-///
-/// It also returns a boolean that, if true, indicates that the page was booted
-/// for the first time.
-async fn boot_first_page(pager: &mut Pager) -> DbResult<(PagerGuard<FirstPage>, bool)> {
-    match pager.get::<FirstPage>(PageId::FIRST).await {
-        Ok(guard) => Ok((guard, false)),
-        Err(Error::PageOutOfBounds(_)) => {
-            info!("first access; booting first page");
-
-            let first_page = FirstPage::default_with_id(PageId::FIRST);
-            // SAFETY: This is the first page, no metadata is needed, yet.
-            unsafe {
-                pager.clear_cache(PageId::FIRST).await;
-                pager.flush_page(&first_page).await?;
-            };
-
-            Ok((pager.get::<FirstPage>(PageId::FIRST).await?, true))
-        }
-        Err(Error::ReadIncompletePage(_)) => {
-            panic!("corrupt database file");
-        }
-        Err(error) => Err(error),
-    }
 }
 
 /// Sets up tracing subscriber.

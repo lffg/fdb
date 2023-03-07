@@ -2,9 +2,10 @@
 
 - Save `PAGE_SIZE` and `IDENTIFIER_SIZE` in the header. Also, parameterize them
   for testing purposes.
-- TODO: Add error context.
+- Add error context.
   - Around `read_var_size_string` and `write_var_size_string`.
-- TODO: `pager` tests; mock `DiskManager`.
+- `pager` cache eviction resistance to duplicate `RwLock`s.
+- `pager` tests; mock `DiskManager`.
 
 # Ideia: Dirty pages?
 

@@ -138,22 +138,21 @@ impl Pager {
     /// the first page.
     #[instrument(skip_all)]
     pub async fn alloc<S: SpecificPage>(&self) -> DbResult<PagerGuard<S>> {
-        let ty = S::ty();
-        info!(?ty, "allocating page");
+        info!(ty = ?S::ty(), "allocating page");
 
-        let p1g = self.get::<FirstPage>(PageId::new_u32(1)).await?;
-        let mut p1 = p1g.write().await;
+        let first_page_guard = self.get::<FirstPage>(PageId::new_u32(1)).await?;
+        let mut first_page = first_page_guard.write().await;
 
-        p1.header.page_count += 1;
+        first_page.header.page_count += 1;
 
-        let page_id = PageId::new_u32(p1.header.page_count);
+        let page_id = PageId::new_u32(first_page.header.page_count);
         let init = S::default_with_id(page_id);
 
-        // SAFETY: Metadata was changed above.
-        unsafe { self.flush_page(&init) }.await?;
+        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        self.flush_page(&mut *buf, &init).await?;
 
         info!("flushing first page metadata...");
-        p1.flush();
+        first_page.flush();
 
         let guard_inner = Arc::new(RwLock::new(init.into_page()));
         self.cache
@@ -168,32 +167,58 @@ impl Pager {
         })
     }
 
-    /// Writes the given page to the database, skipping *all* cache layers.
+    /// Writes the given page to the database.
     ///
-    /// Most of the times, this method shouldn't be used directly. Instead,
-    /// prefer the safer `alloc` method.
+    /// Callers must ensure consistency with the main database header.
+    #[instrument(skip_all)]
+    async fn flush_page(&self, buf: &mut [u8], page: &impl SpecificPage) -> DbResult<()> {
+        let mut buf = Buff::new(buf);
+
+        // TODO: FIXME: A failure in serialization may incur in
+        // database file corruption. For example, if page A was
+        // successfully written in an INSERT sequence (A -> B -> C)
+        // but B failed during serialization, the DB becomes
+        // inconsistent since A was written, but B and C were not.
+        //                      \/
+        page.serialize(&mut buf)?;
+        // `serialize` should fill the buffer.
+        debug_assert_eq!(buf.remaining(), 0);
+
+        let id = page.id();
+        info!(?id, "will flush now");
+
+        self.disk_manager
+            .lock()
+            .await
+            .write_page(id, buf.get())
+            // Same remarks from serialization applies here.
+            //    \/
+            .await?;
+
+        Ok(())
+    }
+
+    /// Writes the given page to the database.
     ///
     /// # Safety
     ///
-    /// The caller must ensure the database consistency. For example, this
-    /// method doesn't update the metadata in the first page.
-    pub async unsafe fn flush_page(&self, page: &impl SpecificPage) -> DbResult<()> {
-        // TODO: Use a buffer pool.
+    /// Callers must ensure consistency with the main database header.
+    pub async unsafe fn flush_page_and_build_guard<S>(&self, page: S) -> DbResult<PagerGuard<S>>
+    where
+        S: SpecificPage,
+    {
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
-        let mut buf = Buff::new(&mut *buf);
+        self.flush_page(&mut *buf, &page).await?;
 
-        page.serialize(&mut buf)?;
+        let id = page.id();
+        let inner = Arc::new(RwLock::new(page.into_page()));
+        self.cache.insert_new(id, Arc::clone(&inner)).await;
 
-        info!("flushing new page...");
-        // Does one need to flush here if the page will be modified again
-        // after the allocation? The rationale for flushing here is that the
-        // first page was flushed to reflect the just-allocated page. Hence,
-        // one needs to flush such a new page.
-        self.disk_manager
-            .lock() // <--- I think this *may* deadlock. :thinking:
-            .await
-            .write_page(page.id(), buf.get())
-            .await
+        Ok(PagerGuard {
+            inner,
+            notifier: self.page_status_tx.clone(),
+            _specific: PhantomData,
+        })
     }
 
     /// Clears all cache information associated with the given page ID.

@@ -11,6 +11,8 @@ pub mod io {
     pub mod cache;
 
     pub mod pager;
+
+    pub mod bootstrap;
 }
 
 pub mod util {
