@@ -3,12 +3,12 @@ use tracing::{info, instrument};
 use crate::{
     catalog::object::Object,
     error::{DbResult, Error},
-    exec::ExecCtx,
+    exec::query::QueryCtx,
 };
 
 /// Tries to find the [`Object`] with the given name. Fails otherwise.
 #[instrument(skip(ctx))]
-pub fn find_object<'a>(ctx: &ExecCtx<'a>, name: &str) -> DbResult<Object> {
+pub fn find_object<'a>(ctx: &QueryCtx<'a>, name: &str) -> DbResult<Object> {
     let next = ctx.object_schema.next_id;
 
     let object = ctx

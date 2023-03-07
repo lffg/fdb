@@ -8,10 +8,10 @@ use crate::{
     },
     error::DbResult,
     exec::{
-        common::{find_object, object_is_not_table},
+        object::{find_object, object_is_not_table},
+        query::{Executor, QueryCtx},
         serde::deserialize_table_record,
         value::Environment,
-        ExecCtx, Executor,
     },
     io::pager::Pager,
 };
@@ -54,7 +54,7 @@ impl IterState {
 impl Executor for Select<'_> {
     type Item<'a> = Option<Environment>;
 
-    async fn next<'a>(&mut self, ctx: &'a ExecCtx) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, self.table_name)?;
         let ObjectType::Table(table) = object.ty else {
             return Err(object_is_not_table(&object));

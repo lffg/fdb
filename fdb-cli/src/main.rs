@@ -15,9 +15,8 @@ use fdb::{
     },
     error::DbResult,
     exec::{
-        self,
+        query::{self, Executor},
         value::{Environment, Value},
-        ExecCtx, Executor,
     },
     io::{bootstrap, disk_manager::DiskManager, pager::Pager},
 };
@@ -41,7 +40,7 @@ async fn main() -> DbResult<()> {
     first_page.release();
 
     loop {
-        let exec_ctx = ExecCtx {
+        let ctx = query::QueryCtx {
             pager: &mut pager,
             object_schema: &schema,
         };
@@ -52,7 +51,7 @@ async fn main() -> DbResult<()> {
                 let id: i32 = input("id (int)> ");
                 let name: String = input("name (text)> ");
                 let age: i32 = input("age (int)> ");
-                let mut cmd = exec::Insert::new(
+                let mut cmd = query::Insert::new(
                     "chess_matches",
                     Environment::from(HashMap::from([
                         ("id".into(), Value::Int(id)),
@@ -60,13 +59,13 @@ async fn main() -> DbResult<()> {
                         ("age".into(), Value::Int(age)),
                     ])),
                 );
-                cmd.next(&exec_ctx).await?;
+                cmd.next(&ctx).await?;
                 println!("ok");
             }
             "select" => {
-                let mut cmd = exec::Select::new("chess_matches");
+                let mut cmd = query::Select::new("chess_matches");
                 println!("{}", "-".repeat(50));
-                while let Some(env) = cmd.next(&exec_ctx).await? {
+                while let Some(env) = cmd.next(&ctx).await? {
                     // Skip logically deleted rows.
                     let Some(row) = env else { continue };
 

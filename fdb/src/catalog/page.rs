@@ -3,6 +3,8 @@ use std::{
     ops::{Add, AddAssign},
 };
 
+use tracing::error;
+
 use crate::{
     config::PAGE_SIZE,
     error::{DbResult, Error},
@@ -16,7 +18,6 @@ pub use first::*;
 /// The heap page definition.
 mod heap;
 pub use heap::*;
-use tracing::error;
 
 /// An in-memory page.
 ///
@@ -297,6 +298,8 @@ impl SpecificPage for Page {
     }
 }
 
+/// Convention macro to ease the implementation of [`SpecificPage`]'s cast
+/// methods.
 macro_rules! impl_cast_methods {
     ($page:ident :: $variant:ident => $target:ty) => {
         fn into_page(self) -> Page {
