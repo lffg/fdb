@@ -10,8 +10,7 @@ use crate::{
     exec::{
         object::{find_object, object_is_not_table},
         query::{Executor, QueryCtx},
-        serde::deserialize_table_record,
-        value::Environment,
+        values::{SchematizedValues, Values},
     },
     io::pager::Pager,
 };
@@ -52,11 +51,13 @@ impl IterState {
 
 #[async_trait]
 impl Executor for Select<'_> {
-    type Item<'a> = Option<Environment>;
+    // TODO: Create ordered row abstraction (so that select return data in the
+    // same order as the user requested).
+    type Item<'a> = Option<Values>;
 
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, self.table_name)?;
-        let ObjectType::Table(table) = object.ty else {
+        let ObjectType::Table(table_schema) = object.ty else {
             return Err(object_is_not_table(&object));
         };
         // Set first state.
@@ -93,13 +94,17 @@ impl Executor for Select<'_> {
 
         page.release();
 
-        let (delta, result) = buf.delta(|buf| deserialize_table_record(buf, &table));
-        state.offset += delta as u16;
+        // TODO: Deal with `Record` here.
+
+        let values = SchematizedValues::deserialize(&mut buf, &table_schema)?;
+        state.offset += values.size() as u16;
+
+        let maybe_values = Some(values.into_values());
 
         state.rem_total -= 1;
         state.rem_page -= 1;
 
-        Ok(Some(result?))
+        Ok(Some(maybe_values))
     }
 }
 

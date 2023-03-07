@@ -7,8 +7,7 @@ use crate::{
     exec::{
         object::{find_object, object_is_not_table},
         query::{Executor, QueryCtx},
-        serde::serialize_table_record,
-        value::Environment,
+        values::Values,
     },
 };
 
@@ -17,7 +16,7 @@ pub struct Insert<'s> {
     /// The table name.
     table_name: &'s str,
     /// The values to be inserted.
-    env: Environment,
+    values: Values,
 }
 
 #[async_trait]
@@ -28,9 +27,11 @@ impl Executor for Insert<'_> {
     // i know, this is horrific. i will refactor this soon.
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         let object = find_object(ctx, self.table_name)?;
-        let ObjectType::Table(table) = object.ty else {
+        let ObjectType::Table(table_schema) = object.ty else {
             return Err(object_is_not_table(&object));
         };
+
+        let schematized_values = self.values.schematize(&table_schema)?;
 
         let seq_first_p_guard = ctx.pager.get::<HeapPage>(object.page_id).await?;
         let mut seq_first_p = seq_first_p_guard.write().await;
@@ -44,17 +45,18 @@ impl Executor for Insert<'_> {
         seq_header.record_count += 1;
 
         // TODO: Handle not enough bytes left to store in the current page.
-        let _needed = self.env.size();
+        let size = schematized_values.size();
 
         // Insert the record.
         let start = seq_first_p.header.free_offset as usize;
         let mut buf = Buff::new(&mut seq_first_p.bytes[start..]);
-        let (delta, result) = buf.delta(|buf| serialize_table_record(buf, &table, &self.env));
-        result?;
+
+        // TODO: Deal with `Record` here.
+        buf.scoped_exact(size as usize, |buf| schematized_values.serialize(buf))?;
 
         // Update metadata.
         seq_first_p.header.record_count += 1;
-        seq_first_p.header.free_offset += u16::try_from(delta).unwrap();
+        seq_first_p.header.free_offset += u16::try_from(size).unwrap();
 
         seq_first_p.flush();
 
@@ -66,7 +68,7 @@ impl Executor for Insert<'_> {
 
 impl<'s> Insert<'s> {
     /// Creates a new insert executor.
-    pub fn new(table_name: &'s str, env: Environment) -> Insert<'s> {
-        Self { table_name, env }
+    pub fn new(table_name: &'s str, values: Values) -> Insert<'s> {
+        Self { table_name, values }
     }
 }

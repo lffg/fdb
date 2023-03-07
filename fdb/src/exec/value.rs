@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::fmt;
 
 use crate::{
     catalog::ty::TypeId,
@@ -6,6 +6,8 @@ use crate::{
     util::io::{Serde, VarBytes, VarString},
 };
 
+/// A database value.
+#[derive(Clone)]
 pub enum Value {
     Bool(bool),
     Byte(u8),
@@ -18,6 +20,20 @@ pub enum Value {
 }
 
 impl Value {
+    /// Returns the default value for the given [`TypeId`].
+    pub fn default_for_type(ty: TypeId) -> Self {
+        match ty {
+            TypeId::Bool => Value::Bool(false),
+            TypeId::Byte => Value::Byte(0),
+            TypeId::ShortInt => Value::ShortInt(0),
+            TypeId::Int => Value::Int(0),
+            TypeId::BigInt => Value::BigInt(0),
+            TypeId::Timestamp => Value::Timestamp(0),
+            TypeId::Text => Value::Text(String::with_capacity(0)),
+            TypeId::Blob => Value::Blob(Vec::with_capacity(0)),
+        }
+    }
+
     /// Returns the size of the serialized byte stream.
     pub fn size(&self) -> u32 {
         match self {
@@ -106,37 +122,5 @@ impl fmt::Debug for Value {
             Value::Text(_) => f.write_str("<string>"),
             Value::Blob(_) => f.write_str("<blob>"),
         }
-    }
-}
-
-/// An environment that map from column names to values.
-#[derive(Debug, Default)]
-pub struct Environment {
-    inner: HashMap<String, Value>,
-}
-
-impl Environment {
-    /// Returns the total size of the environment.
-    pub fn size(&self) -> u32 {
-        self.inner
-            .values()
-            .map(Value::size)
-            .fold(0, std::ops::Add::add)
-    }
-
-    /// Returns a reference to the underlying value.
-    pub fn get(&self, name: &str) -> Option<&Value> {
-        self.inner.get(name)
-    }
-
-    /// Sets a value.
-    pub fn set(&mut self, name: String, value: Value) {
-        self.inner.insert(name, value);
-    }
-}
-
-impl From<HashMap<String, Value>> for Environment {
-    fn from(inner: HashMap<String, Value>) -> Self {
-        Environment { inner }
     }
 }

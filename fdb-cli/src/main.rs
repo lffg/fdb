@@ -16,7 +16,8 @@ use fdb::{
     error::DbResult,
     exec::{
         query::{self, Executor},
-        value::{Environment, Value},
+        value::Value,
+        values::Values,
     },
     io::{bootstrap, disk_manager::DiskManager, pager::Pager},
 };
@@ -53,7 +54,7 @@ async fn main() -> DbResult<()> {
                 let age: i32 = input("age (int)> ");
                 let mut cmd = query::Insert::new(
                     "chess_matches",
-                    Environment::from(HashMap::from([
+                    Values::from(HashMap::from([
                         ("id".into(), Value::Int(id)),
                         ("name".into(), Value::Text(name)),
                         ("age".into(), Value::Int(age)),
