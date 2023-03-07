@@ -97,6 +97,14 @@ impl<'a> Buff<'a> {
         self.slice_to(count).fill(val);
     }
 
+    /// Pads the end of the bugger using the given byte.
+    pub fn pad_end_bytes(&mut self, val: u8) {
+        let rem = self.remaining();
+        if rem != 0 {
+            self.write_bytes(rem, val);
+        }
+    }
+
     /// Creates a scope used to compute the byte delta.
     pub fn delta<F, R>(&mut self, scope: F) -> (usize, R)
     where
@@ -231,6 +239,17 @@ mod tests {
         buf.seek(0);
         let b: i32 = buf.read();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_pad_end_bytes() {
+        let mut orig_buf = [1, 2, 3, 4, 5];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        buf.write::<u16>(0xAB_CD);
+        buf.pad_end_bytes(0);
+
+        assert_eq!(buf.get(), b"\xAB\xCD\x00\x00\x00");
     }
 
     #[test]
