@@ -6,7 +6,6 @@ use std::{
 };
 
 use buff::Buff;
-use dashmap::DashMap;
 use drop_bomb::DropBomb;
 use tokio::sync::{
     mpsc::{self},
@@ -32,14 +31,12 @@ pub struct Pager {
     /// The underlying disk manager.
     disk_manager: Mutex<DiskManager>,
     /// The page cache to help avoid doing unnecessary disk accesses.
-    cache: Cache<PageId, LockedPage>,
-    /// Map to keep track what pages are being used. This is necessary to avoid
-    /// conflicts related to the eviction of an in-use page, which could result
-    /// in more than two **different** references to the same page.
     ///
-    /// By keeping this `in_use` map, the pager doesn't call the cache to fetch
-    /// an already-used page.
-    in_use: DashMap<PageId, Arc<LockedPage>>,
+    /// XX: Deal with conflicts related to the eviction of an in-use page, which
+    /// could lead to two **different** references (and RwLocks) to the same
+    /// page. One *maybe* could use some kind of checksum verification to ensure
+    /// the serial requirements of page write sequences.
+    cache: Cache<PageId, LockedPage>,
     /// Page guard drop sender.
     page_status_tx: PageNotificationSender,
     /// Page guard drop receiver.
@@ -52,11 +49,9 @@ impl Pager {
         let (page_status_tx, rx) = mpsc::unbounded_channel::<PageNotification>();
         let page_status_rx = Mutex::new(rx);
         let disk_manager = Mutex::new(disk_manager);
-        let in_use = DashMap::<PageId, Arc<LockedPage>>::with_capacity(256);
 
         Pager {
             cache: Cache::new(8192, RandomState::default()),
-            in_use,
             disk_manager,
             page_status_tx,
             page_status_rx,
@@ -66,29 +61,18 @@ impl Pager {
     /// Returns a [`PagerGuard`] for the given page ID. This guard may be used
     /// to lock the page for a write or for a read.
     pub async fn get<S: SpecificPage>(&self, page_id: PageId) -> DbResult<PagerGuard<S>> {
-        let notifier = self.page_status_tx.clone();
-        match self.in_use.get(&page_id) {
-            Some(page_ref) => Ok(PagerGuard {
-                inner: Arc::clone(&page_ref),
-                notifier,
-                _specific: PhantomData,
-            }),
-            None => {
-                let inner = self
-                    .cache
-                    .load::<_, Error>(page_id, async {
-                        let page = self.disk_read_page(page_id).await?;
-                        Ok(RwLock::new(page))
-                    })
-                    .await?;
-                self.in_use.insert(page_id, Arc::clone(&inner));
-                Ok(PagerGuard {
-                    inner,
-                    notifier,
-                    _specific: PhantomData,
-                })
-            }
-        }
+        let inner = self
+            .cache
+            .get_or_load::<_, Error>(page_id, async {
+                let page = self.disk_read_page(page_id).await?;
+                Ok(RwLock::new(page))
+            })
+            .await?;
+        Ok(PagerGuard {
+            inner,
+            notifier: self.page_status_tx.clone(),
+            _specific: PhantomData,
+        })
     }
 
     /// Flushes all available pages.
@@ -109,23 +93,13 @@ impl Pager {
                 return Ok(());
             };
 
-            let page_arc = self.in_use.get(&page_id).expect("page must exist");
-            let ref_count = Arc::strong_count(&*page_arc);
-            info!(?page_id, ?ref_count, "page ref count");
-
-            // TODO: FIXME: This number (1) is wrong.
-            if ref_count == 1 {
-                // If strong count is 1, it was the last page reference.
-                // Hence, it may be removed from the map.
-                self.in_use.remove(&page_id);
-            }
+            let page_arc = self.cache.get(&page_id).await.expect("page must exist");
 
             if ref_type == PageRefType::Write {
                 let mut buf = Buff::new(&mut *buf);
 
                 {
-                    // In write reads, this lock should never have any contention.
-                    // ----------- fixme debug_assert_eq!(ref_count, 1);
+                    // In write reads, this lock should not have any contention.
                     let page = page_arc.read().await;
 
                     // TODO: FIXME: A failure in serialization may incur in
@@ -172,8 +146,8 @@ impl Pager {
 
         p1.header.page_count += 1;
 
-        let id = PageId::new_u32(p1.header.page_count);
-        let init = S::default_with_id(id);
+        let page_id = PageId::new_u32(p1.header.page_count);
+        let init = S::default_with_id(page_id);
 
         // SAFETY: Metadata was changed above.
         unsafe { self.flush_page(&init) }.await?;
@@ -182,8 +156,11 @@ impl Pager {
         p1.flush();
 
         let guard_inner = Arc::new(RwLock::new(init.into_page()));
-        self.in_use.insert(id, Arc::clone(&guard_inner));
-        info!(?id, "page allocated");
+        self.cache
+            .insert_new(page_id, Arc::clone(&guard_inner))
+            .await;
+        info!(?page_id, "page allocated");
+
         Ok(PagerGuard {
             inner: guard_inner,
             notifier: self.page_status_tx.clone(),
@@ -226,7 +203,6 @@ impl Pager {
     /// Callers must ensure that there are no other alive references to the
     /// given page.
     pub async unsafe fn clear_cache(&self, page_id: PageId) {
-        self.in_use.remove(&page_id);
         self.cache.evict(&page_id).await;
     }
 

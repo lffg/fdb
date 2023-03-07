@@ -39,6 +39,7 @@ impl Serde<'_> for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         self.object_schema.serialize(buf)?;
+        buf.pad_end_bytes(0);
         Ok(())
     }
 

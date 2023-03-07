@@ -26,11 +26,7 @@ impl Serde<'_> for HeapPage {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         buf.write_slice(&self.bytes);
-
-        let rem = buf.remaining();
-        if rem != 0 {
-            buf.write_bytes(PAGE_SIZE as usize - rem, 0);
-        }
+        buf.pad_end_bytes(0);
 
         Ok(())
     }

@@ -1,9 +1,10 @@
 # TODO
 
-- [ ] Save `PAGE_SIZE` and `IDENTIFIER_SIZE` in the header. Also, parameterize
-      them for testing purposes.
-- [ ] TODO: Add error context.
+- Save `PAGE_SIZE` and `IDENTIFIER_SIZE` in the header. Also, parameterize them
+  for testing purposes.
+- TODO: Add error context.
   - Around `read_var_size_string` and `write_var_size_string`.
+- TODO: `pager` tests; mock `DiskManager`.
 
 # Ideia: Dirty pages?
 
