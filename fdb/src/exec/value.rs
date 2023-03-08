@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{
     catalog::ty::TypeId,
     error::DbResult,
-    util::io::{Serde, VarBytes, VarString},
+    util::io::{Serde, SerdeCtx, VarBytes, VarString},
 };
 
 /// A database value.
@@ -19,23 +19,12 @@ pub enum Value {
     Blob(Vec<u8>),
 }
 
-impl Value {
-    /// Returns the default value for the given [`TypeId`].
-    pub fn default_for_type(ty: TypeId) -> Self {
-        match ty {
-            TypeId::Bool => Value::Bool(false),
-            TypeId::Byte => Value::Byte(0),
-            TypeId::ShortInt => Value::ShortInt(0),
-            TypeId::Int => Value::Int(0),
-            TypeId::BigInt => Value::BigInt(0),
-            TypeId::Timestamp => Value::Timestamp(0),
-            TypeId::Text => Value::Text(String::with_capacity(0)),
-            TypeId::Blob => Value::Blob(Vec::with_capacity(0)),
-        }
-    }
+impl SerdeCtx<'_> for Value {
+    type SerCtx<'ser> = ();
 
-    /// Returns the size of the serialized byte stream.
-    pub fn size(&self) -> u32 {
+    type DeCtx<'de> = TypeId;
+
+    fn size(&self) -> u32 {
         match self {
             Value::Bool(_) => 1,
             Value::Byte(_) => 1,
@@ -50,8 +39,7 @@ impl Value {
         }
     }
 
-    /// Serializes the given value into `buf`.
-    pub fn serialize(&self, buf: &mut buff::Buff) -> DbResult<()> {
+    fn serialize(&self, buf: &mut buff::Buff, _ctx: ()) -> DbResult<()> {
         match self {
             Value::Bool(inner) => buf.write(*inner),
             Value::Byte(inner) => buf.write(*inner),
@@ -65,8 +53,7 @@ impl Value {
         Ok(())
     }
 
-    /// Deserializes the value of the given type id from the given `buf`.
-    pub fn deserialize(type_id: TypeId, buf: &mut buff::Buff) -> DbResult<Self> {
+    fn deserialize(buf: &mut buff::Buff, type_id: TypeId) -> DbResult<Self> {
         let value = match type_id {
             TypeId::Bool => Value::Bool(buf.read()),
             TypeId::Byte => Value::Byte(buf.read()),
@@ -78,6 +65,22 @@ impl Value {
             TypeId::Blob => Value::Blob(VarBytes::deserialize(buf)?.into()),
         };
         Ok(value)
+    }
+}
+
+impl Value {
+    /// Returns the default value for the given [`TypeId`].
+    pub fn default_for_type(ty: TypeId) -> Self {
+        match ty {
+            TypeId::Bool => Value::Bool(false),
+            TypeId::Byte => Value::Byte(0),
+            TypeId::ShortInt => Value::ShortInt(0),
+            TypeId::Int => Value::Int(0),
+            TypeId::BigInt => Value::BigInt(0),
+            TypeId::Timestamp => Value::Timestamp(0),
+            TypeId::Text => Value::Text(String::with_capacity(0)),
+            TypeId::Blob => Value::Blob(Vec::with_capacity(0)),
+        }
     }
 
     /// Returns the corresponding type id.

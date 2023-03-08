@@ -13,6 +13,7 @@ use crate::{
         values::{SchematizedValues, Values},
     },
     io::pager::Pager,
+    util::io::SerdeCtx,
 };
 
 /// An select command.

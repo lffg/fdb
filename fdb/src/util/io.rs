@@ -27,6 +27,26 @@ pub trait Serde<'a> {
         Self: Sized;
 }
 
+/// Same as [`Serde`], but with a deserialization context.
+///
+/// See types which implement this trait for examples.
+pub trait SerdeCtx<'a> {
+    type SerCtx<'ser>;
+
+    type DeCtx<'de>;
+
+    /// Returns the size of the serialized representation.
+    fn size(&self) -> u32;
+
+    /// Serializes the page.
+    fn serialize(&self, buf: &mut Buff<'_>, ctx: Self::SerCtx<'_>) -> DbResult<()>;
+
+    /// Deserializes the page.
+    fn deserialize(buf: &mut Buff<'a>, ctx: Self::DeCtx<'_>) -> DbResult<Self>
+    where
+        Self: Sized;
+}
+
 /// Asserts that the next `expected.len()` bytes are equal to `expected`.
 ///
 /// Returns `true` is the read string was correctly verified.

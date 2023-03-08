@@ -4,6 +4,7 @@ use crate::{
     catalog::table_schema::TableSchema,
     error::{DbResult, Error},
     exec::value::Value,
+    util::io::SerdeCtx,
 };
 
 /// An environment that map from column names to database values ([`Value`]).
@@ -59,57 +60,52 @@ impl From<HashMap<String, Value>> for Values {
 }
 
 /// An schematized environment. See [`Values`].
+/// some schema.
+///
+/// Only schematized [`Values`] maps may be serialized and deserialized.
+///
+/// This type can only be constructed after validating the [`Values`] over a
+/// schema.
 pub struct SchematizedValues<'a> {
     values: Cow<'a, Values>,
-    schema: &'a TableSchema,
-    /// The `values` size.
-    ///
-    /// Since [`SchematizedValues`] wraps over a shared (i.e., immutable)
-    /// reference to the table schema, one can be sure that the [`Values`] size
-    /// won't change for the lifetime of this [`SchematizedValues`]'s instance.
-    /// Hence, the `size` field may be computed upon the instance's creation.
     size: u32,
 }
 
-/// Wraps over a [`Values`] map that is complete and valid in the context of
-/// some schema.
-///
-/// Only schematized [`Values`] maps may be serialized.
+impl SerdeCtx<'_> for SchematizedValues<'_> {
+    type SerCtx<'ser> = &'ser TableSchema;
 
-impl SchematizedValues<'_> {
-    /// Returns the total size of the values map.
-    pub fn size(&self) -> u32 {
+    type DeCtx<'de> = &'de TableSchema;
+
+    fn size(&self) -> u32 {
         self.size
     }
 
-    /// Serializes the map's values in the order specified by the schema columns
-    /// list.
-    pub fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
-        for column in &self.schema.columns {
+    fn serialize(&self, buf: &mut buff::Buff<'_>, schema: &TableSchema) -> DbResult<()> {
+        for column in &schema.columns {
             let value = self.values.get(&column.name).expect("is schematized");
-            value.serialize(buf)?;
+            value.serialize(buf, ())?;
         }
         Ok(())
     }
 
-    /// Deserializes the map's values in the order specified by the schema
-    /// columns list.
-    pub fn deserialize<'a>(
+    fn deserialize(
         buf: &mut buff::Buff<'_>,
-        schema: &'a TableSchema,
-    ) -> DbResult<SchematizedValues<'a>>
+        schema: &TableSchema,
+    ) -> DbResult<SchematizedValues<'static>>
     where
         Self: Sized,
     {
         let mut inner = HashMap::with_capacity(schema.columns.len());
         for column in &schema.columns {
-            let value = Value::deserialize(column.ty, buf)?;
+            let value = Value::deserialize(buf, column.ty)?;
             inner.insert(column.name.to_owned(), value);
         }
         // SAFETY: Database assumes that is just stores valid records.
-        Ok(unsafe { Self::try_new_unchecked(Cow::Owned(Values::from(inner)), schema) })
+        Ok(unsafe { Self::try_new_unchecked(Cow::Owned(Values::from(inner))) })
     }
+}
 
+impl SchematizedValues<'_> {
     /// Returns the underlying owned [`Values`].
     ///
     /// This method *may* clone the underlying [`Values`] map.
@@ -119,6 +115,8 @@ impl SchematizedValues<'_> {
 
     /// Tries to construct a new schematized values over a "raw" values map and
     /// a schema.
+    ///
+    /// `values` is modified in place if it has any null value.
     fn try_new_borrowed<'a>(
         values: &'a mut Values,
         schema: &'a TableSchema,
@@ -149,7 +147,6 @@ impl SchematizedValues<'_> {
 
         Ok(SchematizedValues {
             values: Cow::Borrowed(values),
-            schema,
             size,
         })
     }
@@ -158,15 +155,8 @@ impl SchematizedValues<'_> {
     /// nullability of the values.
     ///
     /// # Safety
-    unsafe fn try_new_unchecked<'a>(
-        values: Cow<'a, Values>,
-        schema: &'a TableSchema,
-    ) -> SchematizedValues<'a> {
+    unsafe fn try_new_unchecked(values: Cow<'_, Values>) -> SchematizedValues<'_> {
         let size = values.inner.values().map(Value::size).sum();
-        SchematizedValues {
-            values,
-            schema,
-            size,
-        }
+        SchematizedValues { values, size }
     }
 }

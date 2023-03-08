@@ -9,6 +9,7 @@ use crate::{
         query::{Executor, QueryCtx},
         values::Values,
     },
+    util::io::SerdeCtx,
 };
 
 /// An insert operation.
@@ -52,7 +53,9 @@ impl Executor for Insert<'_> {
         let mut buf = Buff::new(&mut seq_first_p.bytes[start..]);
 
         // TODO: Deal with `Record` here.
-        buf.scoped_exact(size as usize, |buf| schematized_values.serialize(buf))?;
+        buf.scoped_exact(size as usize, |buf| {
+            schematized_values.serialize(buf, &table_schema)
+        })?;
 
         // Update metadata.
         seq_first_p.header.record_count += 1;
