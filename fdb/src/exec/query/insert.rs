@@ -1,8 +1,14 @@
+use std::borrow::Cow;
+
 use async_trait::async_trait;
 use buff::Buff;
 
 use crate::{
-    catalog::{object::ObjectType, page::HeapPage},
+    catalog::{
+        object::ObjectType,
+        page::HeapPage,
+        record::simple_record::{self, SimpleRecord},
+    },
     error::DbResult,
     exec::{
         object::{find_object, object_is_not_table},
@@ -45,17 +51,19 @@ impl Executor for Insert<'_> {
 
         seq_header.record_count += 1;
 
-        // TODO: Handle not enough bytes left to store in the current page.
-        let size = schematized_values.size();
+        let serde_ctx = simple_record::Ctx {
+            schema: &table_schema,
+            offset: seq_first_p.header.free_offset,
+        };
+        let record = SimpleRecord::<crate::exec::values::SchematizedValues>::new(
+            serde_ctx.offset,
+            Cow::Owned(schematized_values),
+        );
+        let size = record.size();
 
         // Insert the record.
-        let start = seq_first_p.header.free_offset as usize;
-        let mut buf = Buff::new(&mut seq_first_p.bytes[start..]);
-
-        // TODO: Deal with `Record` here.
-        buf.scoped_exact(size as usize, |buf| {
-            schematized_values.serialize(buf, &table_schema)
-        })?;
+        let mut buf = Buff::new(&mut seq_first_p.bytes[serde_ctx.offset as usize..]);
+        record.serialize(&mut buf, serde_ctx)?;
 
         // Update metadata.
         seq_first_p.header.record_count += 1;

@@ -5,6 +5,7 @@ use crate::{
     catalog::{
         object::ObjectType,
         page::{HeapPage, PageId},
+        record::simple_record::{self, SimpleRecord},
     },
     error::DbResult,
     exec::{
@@ -95,17 +96,25 @@ impl Executor for Select<'_> {
 
         page.release();
 
-        // TODO: Deal with `Record` here.
-
-        let values = SchematizedValues::deserialize(&mut buf, &table_schema)?;
-        state.offset += values.size() as u16;
-
-        let maybe_values = Some(values.into_values());
+        let serde_ctx = simple_record::Ctx {
+            schema: &table_schema,
+            offset: state.offset,
+        };
+        let record = SimpleRecord::<SchematizedValues>::deserialize(&mut buf, serde_ctx)?;
+        state.offset += record.size() as u16;
 
         state.rem_total -= 1;
         state.rem_page -= 1;
 
-        Ok(Some(maybe_values))
+        dbg!(&record);
+
+        let res = if record.is_deleted() {
+            None
+        } else {
+            Some(record.into_data().into_owned().into_values())
+        };
+
+        Ok(Some(res))
     }
 }
 

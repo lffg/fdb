@@ -3,13 +3,13 @@ pub mod config;
 pub mod catalog {
     pub mod page;
 
-    pub mod object;
-
     pub mod column;
+    pub mod object;
+    pub mod table_schema;
+
+    pub mod record;
 
     pub mod ty;
-
-    pub mod table_schema;
 }
 
 pub mod io {

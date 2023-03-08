@@ -66,6 +66,7 @@ impl From<HashMap<String, Value>> for Values {
 ///
 /// This type can only be constructed after validating the [`Values`] over a
 /// schema.
+#[derive(Debug, Clone)]
 pub struct SchematizedValues<'a> {
     values: Cow<'a, Values>,
     size: u32,

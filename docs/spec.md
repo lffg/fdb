@@ -3,8 +3,8 @@ This document describes `fdb`'s file format. s
 # Main Concepts and Definitions
 
 The database is stored in a single file, which is divided into pages. Each page
-occupies 4 KB (4096 bytes) of size. This value may be parameterized in the
-future.
+occupies 4 KB (4096 bytes) of size. In the future, this value will be
+parameterizable.
 
 ## Page types
 
@@ -15,7 +15,7 @@ future.
 
 - `FirstPage`
   - `MainHeader`
-    - (...)
+    - TODO: Doc this.
   - `ObjectSchema` first section. Where `ObjectSchema` is defined by:
     - `next_id`, the ID to the next `ObjectSchema` page (see note below).
     - Many `Object`s, where each `Object` is defined by:
@@ -44,16 +44,17 @@ future.
       > "regular tables" to store the next pages of the object schema.
 
 Each "data page" is stored as a heap page. Records are stored sequentially and a
-record may not surpass the maximum page size.
+record's size may not surpass the maximum page size.
 
 Pages may be padded with zeroes at the end if the next record doesn't fit into
 the page; hence, this record is stored on the next page. In the future, as an
 optimization, variable-length fields (such as strings or blobs) will be stored
-separately so that this padding doesn't waste much space.
+separately so that this padding doesn't waste much space since one can store
+more tiny records (without variable-lengthened fields) in the data page.
 
-### TODO
+### Slotted Pages (not yet implemented)
 
-Each "data page" (e.g. heap pages used to store tables) are formatted as a
+Each "data page" (e.g. heap pages used to store tables) is formatted as a
 slotted page. E.g.:
 
 ![slotted page diagram](./assets/slotted-page.png)
@@ -81,6 +82,30 @@ The global header for the sequence is stored in memory as an
 `1`, which is followed by the actual sequence header bytes. In all other pages
 in the sequence, the first byte is `0`, indicating that the page is not the
 first.
+
+## Record Format
+
+Record Format
+
+A record is a unit that stores a single database tuple (i.e., a row in SQL
+terms). Each record is serialized as a "packed struct" with the following
+fields:
+
+- `record_size`, a two-byte (`u16`) number that keeps the total record size,
+  including this very number;
+- `is_deleted`, a single-byte boolean that indicates whether the record is
+  logically deleted. The database may later execute the garbage collection
+  process to remove deleted records physically;
+- `bytes_size`, a two-byte (`u16`) number that specifies the size of the `bytes`
+  section, which comes next. Notice that the size of the `padding` section may
+  be derived from `record-size - 5 - bytes_size`.
+- `bytes`, a variable-sized sequence of bytes that stores the actual record
+  data. The format of this section is unspecified by the record format and may
+  be interpreted arbitrarily given a specific database object schema (i.e., a
+  table, an index, etc).
+- `padding`, a variable-sized sequence of `0` bytes at the record's end. Those
+  bytes are set when the record size shrinks in an update process. The garbage
+  collection process may also reclaim this space.
 
 ## Algorithms
 
