@@ -61,6 +61,11 @@ impl<'a> Buff<'a> {
         self.offset = offset;
     }
 
+    /// Advances the cursor by the given delta.
+    pub fn seek_advance(&mut self, delta: usize) {
+        self.offset += delta;
+    }
+
     /// Reads the type represented by [`AsBytes`].
     pub fn read<const S: usize, T>(&mut self) -> T
     where
@@ -239,6 +244,18 @@ mod tests {
         buf.seek(0);
         let b: i32 = buf.read();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_seek_advance() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        let a: u8 = buf.read();
+        assert_eq!(a, 1);
+        buf.seek_advance(2);
+        let b: u8 = buf.read();
+        assert_eq!(b, 4);
     }
 
     #[test]
