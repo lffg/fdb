@@ -1,4 +1,8 @@
+mod db;
+pub use db::Db;
+
 pub mod config;
+pub mod error;
 
 pub mod catalog {
     pub mod page;
@@ -33,5 +37,3 @@ pub mod exec {
 pub mod util {
     pub mod io;
 }
-
-pub mod error;

@@ -106,8 +106,6 @@ impl Executor for Select<'_> {
         state.rem_total -= 1;
         state.rem_page -= 1;
 
-        dbg!(&record);
-
         let res = if record.is_deleted() {
             None
         } else {

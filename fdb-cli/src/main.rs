@@ -14,12 +14,8 @@ use fdb::{
         ty::TypeId,
     },
     error::DbResult,
-    exec::{
-        query::{self, Executor},
-        value::Value,
-        values::Values,
-    },
-    io::{bootstrap, disk_manager::DiskManager, pager::Pager},
+    exec::{query, value::Value, values::Values},
+    io::pager::Pager,
 };
 use tracing::info;
 
@@ -27,32 +23,22 @@ use tracing::info;
 async fn main() -> DbResult<()> {
     setup_tracing();
 
-    let disk_manager = DiskManager::new(Path::new("ignore/my-db")).await?;
-    let mut pager = Pager::new(disk_manager);
+    let (db, first_access) = fdb::Db::open(Path::new("ignore/my-db")).await?;
 
-    let (first_page_guard, is_new) = bootstrap::boot_first_page(&mut pager).await?;
-    if is_new {
-        define_test_catalog(&pager).await?;
+    if first_access {
+        let pager = db.pager();
+        define_test_catalog(pager).await?;
     }
 
-    info!("getting schema...");
-    let first_page = first_page_guard.read().await;
-    let schema = first_page.object_schema.clone();
-    first_page.release();
-
     loop {
-        let ctx = query::QueryCtx {
-            pager: &mut pager,
-            object_schema: &schema,
-        };
-
         println!("Pick a command: `insert`, `select` or `quit`.");
         match &*input::<String>("cmd> ") {
             "insert" => {
                 let id: i32 = input("id (int)> ");
                 let name: String = input("name (text)> ");
                 let age: i32 = input("age (int)> ");
-                let mut cmd = query::Insert::new(
+
+                let insert_query = query::Insert::new(
                     "chess_matches",
                     Values::from(HashMap::from([
                         ("id".into(), Value::Int(id)),
@@ -60,21 +46,28 @@ async fn main() -> DbResult<()> {
                         ("age".into(), Value::Int(age)),
                     ])),
                 );
-                cmd.next(&ctx).await?;
+
+                db.execute(insert_query, |()| Ok::<_, ()>(()))
+                    .await?
+                    .unwrap();
                 println!("ok");
             }
             "select" => {
-                let mut cmd = query::Select::new("chess_matches");
+                let select_query = query::Select::new("chess_matches");
+
                 println!("{}", "-".repeat(50));
-                while let Some(env) = cmd.next(&ctx).await? {
+                db.execute(select_query, |row| {
                     // Skip logically deleted rows.
-                    let Some(row) = env else { continue };
+                    let Some(row) = row else { return Ok(()) };
 
                     let id = row.get("id").unwrap();
                     let name = row.get("name").unwrap();
                     let age = row.get("age").unwrap();
                     println!("{id:<4} | {name:<20} | {age:<4}");
-                }
+                    Ok::<_, ()>(())
+                })
+                .await?
+                .unwrap();
                 println!("{}", "-".repeat(50));
             }
             "quit" => break,
