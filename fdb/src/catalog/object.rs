@@ -1,7 +1,7 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::{DbResult, Error},
-    util::io::{Serde, VarList, VarString},
+    util::io::{Serde, Size, VarList, VarString},
 };
 
 /// The database object catalog; i.e., the collection of all the objects
@@ -15,11 +15,13 @@ pub struct ObjectSchema {
     pub objects: Vec<Object>,
 }
 
-impl Serde<'_> for ObjectSchema {
+impl Size for ObjectSchema {
     fn size(&self) -> u32 {
         self.next_id.size() + VarList::from(self.objects.as_slice()).size()
     }
+}
 
+impl Serde<'_> for ObjectSchema {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.next_id.serialize(buf)?;
         VarList::from(self.objects.as_slice()).serialize(buf)?;
@@ -53,11 +55,13 @@ pub struct Object {
     pub name: String,
 }
 
-impl Serde<'_> for Object {
+impl Size for Object {
     fn size(&self) -> u32 {
         self.ty.size() + self.page_id.size() + VarString::from(self.name.as_str()).size()
     }
+}
 
+impl Serde<'_> for Object {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         self.page_id.serialize(buf)?;
@@ -83,14 +87,16 @@ pub enum ObjectType {
     Index,
 }
 
-impl Serde<'_> for ObjectType {
+impl Size for ObjectType {
     fn size(&self) -> u32 {
         1 + match self {
             ObjectType::Table(schema) => schema.size(),
             ObjectType::Index => 0,
         }
     }
+}
 
+impl Serde<'_> for ObjectType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
         if let ObjectType::Table(schema) = self {

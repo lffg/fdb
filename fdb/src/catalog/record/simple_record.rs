@@ -5,7 +5,11 @@ use std::{
     ops::Add,
 };
 
-use crate::{catalog::table_schema::TableSchema, error::DbResult, util::io::SerdeCtx};
+use crate::{
+    catalog::table_schema::TableSchema,
+    error::DbResult,
+    util::io::{SerdeCtx, Size},
+};
 
 /// A simple database record. May store arbitrary bytes which are to be
 /// interpreted in a higher-level layer.
@@ -117,6 +121,18 @@ where
     }
 }
 
+impl<D> Size for SimpleRecord<'_, D>
+where
+    D: Size + Clone,
+{
+    fn size(&self) -> u32 {
+        (2_u32) // total size
+            .add(1) // is deleted flag
+            .add(self.data.size()) // data
+            .add(self.pad_size as u32) // padding size
+    }
+}
+
 impl<D> SerdeCtx<'_> for SimpleRecord<'_, D>
 where
     D: for<'a, 'ser, 'de> SerdeCtx<
@@ -128,13 +144,6 @@ where
     type SerCtx<'ser> = Ctx<'ser>;
 
     type DeCtx<'de> = Ctx<'de>;
-
-    fn size(&self) -> u32 {
-        (2_u32) // total size
-            .add(1) // is deleted flag
-            .add(self.data.size()) // data
-            .add(self.pad_size as u32) // padding size
-    }
 
     fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: Ctx<'_>) -> DbResult<()> {
         buf.write(self.total_size);

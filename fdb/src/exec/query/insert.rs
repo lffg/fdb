@@ -15,7 +15,7 @@ use crate::{
         query::{Executor, QueryCtx},
         values::Values,
     },
-    util::io::SerdeCtx,
+    util::io::{SerdeCtx, Size},
 };
 
 /// An insert operation.

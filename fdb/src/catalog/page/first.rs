@@ -6,7 +6,7 @@ use crate::{
         page::{Page, PageId, PageType, SpecificPage},
     },
     error::{DbResult, Error},
-    util::io::{read_verify_eq, Serde},
+    util::io::{read_verify_eq, Serde, Size},
 };
 
 /// The database header size.
@@ -28,14 +28,16 @@ pub struct FirstPage {
     pub object_schema: ObjectSchema,
 }
 
-impl Serde<'_> for FirstPage {
+impl Size for FirstPage {
     fn size(&self) -> u32 {
         // One doesn't need to contabilize the type byte here, since the
         // database utilizes the `'f' as u8` code point as the first page's type
         // tag.
         self.header.size() + self.object_schema.size()
     }
+}
 
+impl Serde<'_> for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         self.object_schema.serialize(buf)?;
@@ -90,11 +92,13 @@ pub struct MainHeader {
     pub first_free_list_page_id: Option<PageId>,
 }
 
-impl Serde<'_> for MainHeader {
+impl Size for MainHeader {
     fn size(&self) -> u32 {
         HEADER_SIZE as u32
     }
+}
 
+impl Serde<'_> for MainHeader {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.scoped_exact(HEADER_SIZE, |buf| {
             buf.write_slice(b"fdb format");

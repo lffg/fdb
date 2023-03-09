@@ -14,7 +14,7 @@ use crate::{
         values::{SchematizedValues, Values},
     },
     io::pager::Pager,
-    util::io::SerdeCtx,
+    util::io::{SerdeCtx, Size},
 };
 
 /// An select command.

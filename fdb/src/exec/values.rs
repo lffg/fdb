@@ -4,7 +4,7 @@ use crate::{
     catalog::table_schema::TableSchema,
     error::{DbResult, Error},
     exec::value::Value,
-    util::io::SerdeCtx,
+    util::io::{SerdeCtx, Size},
 };
 
 /// An environment that map from column names to database values ([`Value`]).
@@ -72,14 +72,16 @@ pub struct SchematizedValues<'a> {
     size: u32,
 }
 
+impl Size for SchematizedValues<'_> {
+    fn size(&self) -> u32 {
+        self.size
+    }
+}
+
 impl SerdeCtx<'_> for SchematizedValues<'_> {
     type SerCtx<'ser> = &'ser TableSchema;
 
     type DeCtx<'de> = &'de TableSchema;
-
-    fn size(&self) -> u32 {
-        self.size
-    }
 
     fn serialize(&self, buf: &mut buff::Buff<'_>, schema: &TableSchema) -> DbResult<()> {
         for column in &schema.columns {

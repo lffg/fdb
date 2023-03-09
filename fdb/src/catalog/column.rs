@@ -1,7 +1,7 @@
 use crate::{
     catalog::ty::TypeId,
     error::DbResult,
-    util::io::{Serde, VarString},
+    util::io::{Serde, Size, VarString},
 };
 
 /// A column definition.
@@ -15,11 +15,13 @@ pub struct Column {
     pub name: String,
 }
 
-impl Serde<'_> for Column {
+impl Size for Column {
     fn size(&self) -> u32 {
         self.ty.size() + VarString::from(self.name.as_str()).size()
     }
+}
 
+impl Serde<'_> for Column {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         VarString::from(self.name.as_str()).serialize(buf)?;

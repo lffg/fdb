@@ -2,7 +2,7 @@ use tracing::error;
 
 use crate::{
     error::{DbResult, Error},
-    util::io::Serde,
+    util::io::{Serde, Size},
 };
 
 /// `fdb` possible value types.
@@ -24,11 +24,13 @@ pub enum TypeId {
     Array(PrimitiveTypeId),
 }
 
-impl Serde<'_> for TypeId {
+impl Size for TypeId {
     fn size(&self) -> u32 {
         1
     }
+}
 
+impl Serde<'_> for TypeId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let (hi_discriminant, lo_discriminant) = match self {
             TypeId::Primitive(primitive) => (0, primitive.to_u8()),
@@ -96,11 +98,13 @@ pub enum PrimitiveTypeId {
     Blob = 7,
 }
 
-impl Serde<'_> for PrimitiveTypeId {
+impl Size for PrimitiveTypeId {
     fn size(&self) -> u32 {
         1
     }
+}
 
+impl Serde<'_> for PrimitiveTypeId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.to_u8());
         Ok(())

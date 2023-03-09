@@ -3,7 +3,7 @@ use std::{fmt, ops::Add};
 use crate::{
     catalog::ty::{PrimitiveTypeId, TypeId},
     error::DbResult,
-    util::io::{Serde, SerdeCtx, VarBytes, VarString},
+    util::io::{Serde, SerdeCtx, Size, VarBytes, VarString},
 };
 
 /// A database value.
@@ -20,11 +20,7 @@ pub enum Value {
     Array(PrimitiveTypeId, Vec<Value>), // TODO: Extract this as a type.
 }
 
-impl SerdeCtx<'_> for Value {
-    type SerCtx<'ser> = ();
-
-    type DeCtx<'de> = TypeId;
-
+impl Size for Value {
     fn size(&self) -> u32 {
         match self {
             Value::Bool(_) => 1,
@@ -48,6 +44,12 @@ impl SerdeCtx<'_> for Value {
                 .add(2), // length
         }
     }
+}
+
+impl SerdeCtx<'_> for Value {
+    type SerCtx<'ser> = ();
+
+    type DeCtx<'de> = TypeId;
 
     fn serialize(&self, buf: &mut buff::Buff, _ctx: ()) -> DbResult<()> {
         match self {

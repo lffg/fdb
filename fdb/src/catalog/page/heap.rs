@@ -6,7 +6,7 @@ use crate::{
     catalog::page::{Page, PageId, PageType, SpecificPage},
     config::PAGE_SIZE,
     error::{DbResult, Error},
-    util::io::Serde,
+    util::io::{Serde, Size},
 };
 
 /// The first [`HeapPage`] in the sequence.
@@ -18,11 +18,13 @@ pub struct HeapPage {
     pub bytes: Vec<u8>, // XX: Review this.
 }
 
-impl Serde<'_> for HeapPage {
+impl Size for HeapPage {
     fn size(&self) -> u32 {
         self.header.size() + self.bytes.len() as u32
     }
+}
 
+impl Serde<'_> for HeapPage {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         buf.write_slice(&self.bytes);
@@ -93,7 +95,7 @@ pub struct Header {
     pub free_offset: u16,
 }
 
-impl Serde<'_> for Header {
+impl Size for Header {
     fn size(&self) -> u32 {
         HeapPage::ty().size()
             + self.id.size()
@@ -102,7 +104,9 @@ impl Serde<'_> for Header {
             + 2
             + 2
     }
+}
 
+impl Serde<'_> for Header {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         HeapPage::ty().serialize(buf)?;
         self.id.serialize(buf)?;
@@ -138,14 +142,16 @@ pub struct SeqHeader {
     pub record_count: u64,
 }
 
-impl Serde<'_> for Option<SeqHeader> {
+impl Size for Option<SeqHeader> {
     fn size(&self) -> u32 {
         1 + self
             .as_ref()
             .map(|header| header.last_page_id.size() + 4 + 8)
             .unwrap_or(1)
     }
+}
 
+impl Serde<'_> for Option<SeqHeader> {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let Some(header) = self else {
             buf.write(0xAA_u8);

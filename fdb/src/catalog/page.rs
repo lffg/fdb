@@ -8,7 +8,7 @@ use tracing::error;
 use crate::{
     config::PAGE_SIZE,
     error::{DbResult, Error},
-    util::io::Serde,
+    util::io::{Serde, Size},
 };
 
 /// The first page definition.
@@ -73,11 +73,13 @@ impl Page {
     }
 }
 
-impl Serde<'_> for Page {
+impl Size for Page {
     fn size(&self) -> u32 {
         PAGE_SIZE as u32
     }
+}
 
+impl Serde<'_> for Page {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         match self {
             Page::First(inner) => inner.serialize(buf),
@@ -114,11 +116,13 @@ pub enum PageType {
     Heap = 0x01,
 }
 
-impl Serde<'_> for PageType {
+impl Size for PageType {
     fn size(&self) -> u32 {
         1
     }
+}
 
+impl Serde<'_> for PageType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(*self as u8);
         Ok(())
@@ -202,11 +206,13 @@ impl AddAssign<u32> for PageId {
     }
 }
 
-impl Serde<'_> for PageId {
+impl Size for PageId {
     fn size(&self) -> u32 {
         4
     }
+}
 
+impl Serde<'_> for PageId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         Some(*self).serialize(buf)
     }
@@ -220,11 +226,13 @@ impl Serde<'_> for PageId {
     }
 }
 
-impl Serde<'_> for Option<PageId> {
+impl Size for Option<PageId> {
     fn size(&self) -> u32 {
         4
     }
+}
 
+impl Serde<'_> for Option<PageId> {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let num = self.map(PageId::get).unwrap_or(0);
         buf.write(num);
