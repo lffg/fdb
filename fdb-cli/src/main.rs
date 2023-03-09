@@ -11,7 +11,7 @@ use fdb::{
         object::{Object, ObjectSchema, ObjectType},
         page::{FirstPage, HeapPage, PageId, SpecificPage},
         table_schema::TableSchema,
-        ty::TypeId,
+        ty::{PrimitiveTypeId, TypeId},
     },
     error::DbResult,
     exec::{query, value::Value, values::Values},
@@ -149,15 +149,15 @@ fn get_chess_matches_schema() -> TableSchema {
     TableSchema {
         columns: vec![
             Column {
-                ty: TypeId::Int,
+                ty: TypeId::Primitive(PrimitiveTypeId::Int),
                 name: "id".into(),
             },
             Column {
-                ty: TypeId::Text,
+                ty: TypeId::Primitive(PrimitiveTypeId::Text),
                 name: "name".into(),
             },
             Column {
-                ty: TypeId::Int,
+                ty: TypeId::Primitive(PrimitiveTypeId::Int),
                 name: "age".into(),
             },
         ],

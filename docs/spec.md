@@ -83,6 +83,40 @@ The global header for the sequence is stored in memory as an
 in the sequence, the first byte is `0`, indicating that the page is not the
 first.
 
+## Data Types
+
+`fdb` support eight types:
+
+- `bool`, a byte which only allows for `0` and `1`.
+- `byte`, a byte (i.e., a single-byte _unsigned_ integer).
+- `shortint`, a two-byte signed integer.
+- `int`, a four-byte signed integer.
+- `bigint`, an eight-byte signed integer.
+- `timestamp`;
+- `text`, a variable-length UTF-8 encoded sequence of bytes;
+- `blob`, a variable-length arbitrary sequence of bytes;
+- `array`, a composite type that represents an unidimensional and homogeneous
+  sequence of values of the same type. E.g., one may store an array of `text`
+  elements.
+
+### Data Types Format
+
+- `bool`, `byte`, `shortint`, `int` and `bigint` are stored as is;
+- `timestamp` is stored as an eight-byte signed integer, representing the amount
+  of milliseconds since 00:00:00 UTC on 1 January 1970 (Unix Epoch);
+- `text` and `blob` are stored as:
+  - A two-byte unsigned integer which stores the length of the byte sequence;
+  - The byte sequence itself. In the case of strings, this sequence is
+    UTF-8-encoded.
+- `array` are stored as:
+  - A two-byte unsigned integer representing its length;
+  - All the elements, forming a "packed serialization". Elements are serialized
+    as described above.
+
+Currently, since `text`s, `blob`s and `array`s are stored _inline_ with the rest
+of the record, one must take into account that the record size may not surpass
+the page's size.
+
 ## Record Format
 
 Record Format
