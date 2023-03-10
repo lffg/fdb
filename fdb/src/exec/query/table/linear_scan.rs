@@ -23,6 +23,7 @@ pub struct LinearScan<'a> {
     state: Option<State>,
 }
 
+#[derive(Debug)]
 struct State {
     table_schema: TableSchema,
     page_id: PageId,
@@ -47,10 +48,11 @@ impl Query for LinearScan<'_> {
             }
 
             if state.rem_page == 0 {
-                state.page_id = page
+                let next_page_id = page
                     .header
                     .next_page_id
                     .expect("bug: counters aren't synchronized");
+                Self::load_next_state_for_page(state, ctx, next_page_id).await?;
                 page.release();
                 debug!("moving to next page in the sequence");
                 continue;
@@ -122,5 +124,21 @@ impl<'s> LinearScan<'s> {
                 ))
             }
         }
+    }
+
+    async fn load_next_state_for_page(
+        state: &mut State,
+        ctx: &QueryCtx<'_>,
+        page_id: PageId,
+    ) -> DbResult<()> {
+        let guard = ctx.pager.get::<HeapPage>(page_id).await?;
+        let page = guard.read().await;
+
+        state.page_id = page_id;
+        state.rem_page = page.header.record_count;
+        state.offset = page.first_offset();
+
+        page.release();
+        Ok(())
     }
 }
