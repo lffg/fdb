@@ -91,7 +91,7 @@ impl HeapPage {
     /// THAT THIS METHOD DOESN'T ALTER THE UNDERLYING RECORD COUNTER.
     pub fn write<F, R>(&mut self, f: F) -> DbResult<R>
     where
-        F: for<'a> Fn(&mut buff::Buff<'a>) -> DbResult<R>,
+        F: for<'a> FnOnce(&mut buff::Buff<'a>) -> DbResult<R>,
     {
         let mut buf = buff::Buff::new(&mut self.bytes[self.header.free_offset as usize..]);
         let start = buf.offset();
@@ -99,6 +99,28 @@ impl HeapPage {
         let delta = buf.offset() - start;
         self.header.free_offset += delta as u16;
         Ok(r)
+    }
+
+    /// Reads at the given offset.
+    pub fn read_at<F, R>(&self, offset: u16, f: F) -> DbResult<R>
+    where
+        F: for<'a> FnOnce(&mut buff::Buff<'a>) -> DbResult<R>,
+    {
+        // TODO: HACK: One must be able to create a buf from a shared slice.
+        // TODO(buff-trait): Fix.
+        let mut cloned_buf = self.bytes[offset as usize..].to_owned();
+        let mut buf = buff::Buff::new(&mut cloned_buf);
+        f(&mut buf)
+    }
+
+    /// Returns the initial data offset for this page's type.
+    pub fn first_offset(&self) -> u16 {
+        0
+    }
+
+    /// Returns the current offset.
+    pub fn offset(&self) -> u16 {
+        self.header.free_offset
     }
 }
 

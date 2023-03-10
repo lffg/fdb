@@ -5,6 +5,9 @@ use crate::{error::DbResult, io::pager::Pager};
 mod object_create;
 pub use object_create::*;
 
+mod object_select;
+pub use object_select::*;
+
 mod insert;
 pub use insert::*;
 

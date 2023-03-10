@@ -55,9 +55,6 @@ async fn main() -> DbResult<()> {
 
                 println!("{}", "-".repeat(50));
                 db.execute(select_query, |row| {
-                    // Skip logically deleted rows.
-                    let Some(row) = row else { return Ok(()) };
-
                     let id = row.get("id").unwrap();
                     let name = row.get("name").unwrap();
                     let age = row.get("age").unwrap();

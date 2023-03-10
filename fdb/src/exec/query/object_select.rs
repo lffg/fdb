@@ -1,30 +1,28 @@
 use async_trait::async_trait;
-use tracing::trace;
+use tracing::{instrument, trace};
 
 use crate::{
     catalog::{
         object::Object,
         page::{HeapPage, PageId},
         record::simple_record::{self, SimpleRecord},
-        table_schema::TableSchema,
     },
     error::DbResult,
-    exec::{
-        query::{Executor, QueryCtx},
-        values::{SchematizedValues, Values},
-    },
+    exec::query::{Executor, QueryCtx},
     io::pager::PagerGuard,
     util::io::{SerdeCtx, Size},
 };
 
-/// An select command.
-pub struct Select<'a> {
-    table_name: &'a str,
+// TODO: Dup.
+const FIRST_SCHEMA_PAGE_ID: PageId = PageId::new_u32(2);
+
+/// An object selection operation.
+#[derive(Default)]
+pub struct ObjectSelect {
     state: Option<State>,
 }
 
 struct State {
-    table_schema: TableSchema,
     page_id: PageId,
     rem_total: u64,
     rem_page: u16,
@@ -32,11 +30,10 @@ struct State {
 }
 
 #[async_trait]
-impl Executor for Select<'_> {
-    // TODO: Create ordered row abstraction (so that select return data in the
-    // same order as the user requested).
-    type Item<'a> = Values;
+impl Executor for ObjectSelect {
+    type Item<'a> = Object;
 
+    #[instrument(skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         loop {
             let (page_guard, state) = self.get_or_init_state(ctx).await?;
@@ -57,13 +54,12 @@ impl Executor for Select<'_> {
                 continue;
             }
 
-            let serde_ctx = simple_record::TableRecordCtx {
-                schema: &state.table_schema,
+            let serde_ctx = simple_record::OffsetCtx {
                 offset: state.offset,
             };
 
             let record = page.read_at(state.offset, |buf| {
-                SimpleRecord::<SchematizedValues>::deserialize(buf, serde_ctx)
+                SimpleRecord::<Object>::deserialize(buf, serde_ctx)
             })?;
 
             state.offset += record.size() as u16;
@@ -74,20 +70,17 @@ impl Executor for Select<'_> {
                 continue;
             }
 
-            return Ok(Some(record.into_data().into_owned().into_values()));
+            return Ok(Some(record.into_data().into_owned()));
         }
     }
 }
 
-impl<'s> Select<'s> {
-    /// Creates a new insert executor.
-    pub fn new(table_name: &'s str) -> Select<'s> {
-        Self {
-            table_name,
-            state: None,
-        }
+impl ObjectSelect {
+    pub fn new() -> ObjectSelect {
+        Self { state: None }
     }
 
+    /// Initializes the state.
     async fn get_or_init_state(
         &mut self,
         ctx: &QueryCtx<'_>,
@@ -95,31 +88,24 @@ impl<'s> Select<'s> {
         match &mut self.state {
             Some(state) => Ok((ctx.pager.get::<HeapPage>(state.page_id).await?, state)),
             state @ None => {
-                trace!("fetching table schema");
-                let table_object = Object::find(ctx, self.table_name).await?;
-                let first_page_id = table_object.page_id;
-                let table_schema = table_object.try_into_table_schema()?;
-
-                trace!("loading first page of sequence");
-                let guard = ctx.pager.get::<HeapPage>(first_page_id).await?;
+                trace!(page = ?FIRST_SCHEMA_PAGE_ID, "reading first page from sequence");
+                let guard = ctx.pager.get::<HeapPage>(FIRST_SCHEMA_PAGE_ID).await?;
                 let page = guard.read().await;
 
-                let seq_header = page.header.seq_header.as_ref().expect("first page");
-                let rem_total = seq_header.record_count;
-                let rem_page = page.header.record_count;
+                let state = state.insert(State {
+                    page_id: FIRST_SCHEMA_PAGE_ID,
+                    rem_total: page // TODO: Dup with macro foo!(mut|ref, ...).
+                        .header
+                        .seq_header
+                        .as_ref()
+                        .expect("first page")
+                        .record_count,
+                    rem_page: page.header.record_count,
+                    offset: page.first_offset(),
+                });
 
                 page.release();
-
-                Ok((
-                    guard,
-                    state.insert(State {
-                        table_schema,
-                        page_id: first_page_id,
-                        rem_total,
-                        rem_page,
-                        offset: 0,
-                    }),
-                ))
+                Ok((guard, state))
             }
         }
     }

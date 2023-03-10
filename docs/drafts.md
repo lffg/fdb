@@ -6,6 +6,7 @@
   - Around `read_var_size_string` and `write_var_size_string`.
 - `pager` cache eviction resistance to duplicate `RwLock`s.
 - `pager` tests; mock `DiskManager`.
+- Buff Trait. P0.
 
 Ideias:
 

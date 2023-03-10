@@ -1,18 +1,33 @@
-use tracing::instrument;
-
 use crate::{
-    catalog::object::Object,
+    catalog::{
+        object::{Object, ObjectType},
+        table_schema::TableSchema,
+    },
     error::{DbResult, Error},
-    exec::query::QueryCtx,
+    exec::query::{Executor, ObjectSelect, QueryCtx},
 };
 
-/// Tries to find the [`Object`] with the given name. Fails otherwise.
-#[instrument(skip(_ctx))]
-pub fn find_object<'a>(_ctx: &QueryCtx<'a>, name: &str) -> DbResult<Object> {
-    todo!();
-}
+impl Object {
+    /// Tries to find the given object from the database.
+    pub async fn find(ctx: &QueryCtx<'_>, name: &str) -> DbResult<Self> {
+        let mut query = ObjectSelect::new();
+        while let Some(object) = query.next(ctx).await? {
+            if object.name == name {
+                return Ok(object);
+            }
+        }
+        Err(Error::ExecError(format!("table `{name}` does not exist")))
+    }
 
-/// Asserts that the given [`Object`] is a table.
-pub fn object_is_not_table(object: &Object) -> Error {
-    Error::ExecError(format!("object `{}` is not a table", object.name))
+    /// Returns the underlying [`TableSchema`] or fails.
+    pub fn try_into_table_schema(self) -> DbResult<TableSchema> {
+        if let ObjectType::Table(table) = self.ty {
+            Ok(table)
+        } else {
+            Err(Error::ExecError(format!(
+                "object `{}` is not a table",
+                self.name
+            )))
+        }
+    }
 }
