@@ -8,9 +8,10 @@ use crate::{
         record::simple_record::{self, SimpleRecord},
     },
     error::DbResult,
-    exec::query::{Query, QueryCtx},
+    exec::query::Query,
     io::pager::PagerGuard,
     util::io::{SerdeCtx, Size},
+    Db,
 };
 
 // TODO: Dup.
@@ -34,9 +35,9 @@ impl Query for Select {
     type Item<'a> = Object;
 
     #[instrument(name = "ObjectSelect", level = "debug", skip_all)]
-    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
-            let (page_guard, state) = self.get_or_init_state(ctx).await?;
+            let (page_guard, state) = self.get_or_init_state(db).await?;
             let page = page_guard.read().await;
 
             if state.rem_total == 0 {
@@ -49,7 +50,7 @@ impl Query for Select {
                     .header
                     .next_page_id
                     .expect("bug: counters aren't synchronized");
-                Self::load_next_state_for_page(state, ctx, next_page_id).await?;
+                Self::load_next_state_for_page(db, state, next_page_id).await?;
                 page.release();
                 debug!("moving to next page in the sequence");
                 continue;
@@ -85,15 +86,12 @@ impl Select {
     }
 
     /// Initializes the state.
-    async fn get_or_init_state(
-        &mut self,
-        ctx: &QueryCtx<'_>,
-    ) -> DbResult<(PagerGuard<HeapPage>, &mut State)> {
+    async fn get_or_init_state(&mut self, db: &Db) -> DbResult<(PagerGuard<HeapPage>, &mut State)> {
         match &mut self.state {
-            Some(state) => Ok((ctx.pager.get::<HeapPage>(state.page_id).await?, state)),
+            Some(state) => Ok((db.pager().get::<HeapPage>(state.page_id).await?, state)),
             state @ None => {
                 debug!(page = ?FIRST_SCHEMA_PAGE_ID, "reading first page from sequence");
-                let guard = ctx.pager.get::<HeapPage>(FIRST_SCHEMA_PAGE_ID).await?;
+                let guard = db.pager().get::<HeapPage>(FIRST_SCHEMA_PAGE_ID).await?;
                 let page = guard.read().await;
 
                 let state = state.insert(State {
@@ -114,12 +112,8 @@ impl Select {
         }
     }
 
-    async fn load_next_state_for_page(
-        state: &mut State,
-        ctx: &QueryCtx<'_>,
-        page_id: PageId,
-    ) -> DbResult<()> {
-        let guard = ctx.pager.get::<HeapPage>(page_id).await?;
+    async fn load_next_state_for_page(db: &Db, state: &mut State, page_id: PageId) -> DbResult<()> {
+        let guard = db.pager().get::<HeapPage>(page_id).await?;
         let page = guard.read().await;
 
         state.page_id = page_id;

@@ -5,10 +5,11 @@ use crate::{
     catalog::{object::Object, page::HeapPage, record::simple_record, table_schema::TableSchema},
     error::DbResult,
     exec::{
-        query::{table::LinearScan, Query, QueryCtx},
+        query::{table::LinearScan, Query},
         values::Values,
     },
     util::io::SerdeCtx,
+    Db,
 };
 
 /// The deletion predicate.
@@ -28,9 +29,9 @@ impl Query for Delete<'_> {
     type Item<'a> = ();
 
     #[instrument(name = "TableDelete", level = "debug", skip_all)]
-    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
-            let out = if let Some(mut record) = self.linear_scan.next(ctx).await? {
+            let out = if let Some(mut record) = self.linear_scan.next(db).await? {
                 let values = record.as_data().as_values();
 
                 if record.is_deleted() || !(self.pred)(values) {
@@ -40,14 +41,14 @@ impl Query for Delete<'_> {
                 let page_id = record.page_id();
                 let offset = record.offset();
                 debug!(?page_id, "allocating page for write");
-                let guard = ctx.pager.get::<HeapPage>(page_id).await?;
+                let guard = db.pager().get::<HeapPage>(page_id).await?;
                 let mut page = guard.write().await;
 
                 // TODO: Remove this. Pass via `Delete` argument.
                 let ctx = simple_record::TableRecordCtx {
                     page_id,
                     offset,
-                    schema: self.get_or_init_schema(ctx).await?,
+                    schema: self.get_or_init_schema(db).await?,
                 };
 
                 record.set_deleted();
@@ -56,7 +57,7 @@ impl Query for Delete<'_> {
                 page.flush();
                 Some(())
             } else {
-                ctx.pager.flush_all().await?;
+                db.pager().flush_all().await?;
                 None
             };
             return Ok(out);
@@ -75,11 +76,11 @@ impl<'s> Delete<'s> {
     }
 
     /// Initializes the schema, if needed.
-    async fn get_or_init_schema(&mut self, ctx: &QueryCtx<'_>) -> DbResult<&mut TableSchema> {
+    async fn get_or_init_schema(&mut self, db: &Db) -> DbResult<&mut TableSchema> {
         Ok(match &mut self.table_schema {
             Some(schema) => schema,
             schema @ None => schema.insert(
-                Object::find(ctx, self.table_name)
+                Object::find(db, self.table_name)
                     .await?
                     .try_into_table_schema()?,
             ),

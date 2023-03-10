@@ -12,11 +12,12 @@ use crate::{
     },
     error::{DbResult, Error},
     exec::{
-        query::{seq_h, Query, QueryCtx},
+        query::{seq_h, Query},
         values::{SchematizedValues, Values},
     },
     io::pager::Pager,
     util::io::{SerdeCtx, Size},
+    Db,
 };
 
 /// An insert query.
@@ -32,15 +33,15 @@ impl Query for Insert<'_> {
     type Item<'a> = ();
 
     #[instrument(name = "TableInsert", level = "debug", skip_all)]
-    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
-        let object = Object::find(ctx, self.table_name).await?;
+    async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
+        let object = Object::find(db, self.table_name).await?;
         let page_id = object.page_id;
 
         let table_schema = object.try_into_table_schema()?;
         let schematized_values = self.values.schematize(&table_schema)?;
 
         debug!(?page_id, "getting page");
-        let guard = ctx.pager.get::<HeapPage>(page_id).await?;
+        let guard = db.pager().get::<HeapPage>(page_id).await?;
         let mut page = guard.write().await;
         let last_page_id = seq_h!(mut page).last_page_id;
 
@@ -48,15 +49,15 @@ impl Query for Insert<'_> {
             // If there are more than one page in the heap sequence, one must
             // write into the last page in the sequence.
             debug!(?page_id, "getting last page");
-            let last_guard = ctx.pager.get::<HeapPage>(last_page_id).await?;
+            let last_guard = db.pager().get::<HeapPage>(last_page_id).await?;
             let mut last = last_guard.write().await;
 
-            let mlp = write(ctx.pager, &mut last, &table_schema, &schematized_values).await?;
+            let mlp = write(db.pager(), &mut last, &table_schema, &schematized_values).await?;
             last.flush();
             mlp
         } else {
             // Otherwise, one is in the first page.
-            write(ctx.pager, &mut page, &table_schema, &schematized_values).await?
+            write(db.pager(), &mut page, &table_schema, &schematized_values).await?
         };
 
         seq_h!(mut page).record_count += 1;
@@ -68,7 +69,7 @@ impl Query for Insert<'_> {
 
         page.flush();
 
-        ctx.pager.flush_all().await?;
+        db.pager().flush_all().await?;
 
         Ok(None)
     }

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{
     error::DbResult,
-    exec::query::{Query, QueryCtx},
+    exec::query::Query,
     io::{bootstrap, disk_manager::DiskManager, pager::Pager},
 };
 
@@ -31,8 +31,7 @@ impl Db {
         Q: Query,
         F: for<'a> FnMut(Q::Item<'a>) -> Result<(), E>,
     {
-        let ctx = QueryCtx { pager: &self.pager };
-        while let Some(item) = query.next(&ctx).await? {
+        while let Some(item) = query.next(&self).await? {
             if let error @ Err(_) = f(item) {
                 return Ok(error);
             }

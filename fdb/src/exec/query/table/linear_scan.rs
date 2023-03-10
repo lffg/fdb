@@ -9,12 +9,10 @@ use crate::{
         table_schema::TableSchema,
     },
     error::DbResult,
-    exec::{
-        query::{Query, QueryCtx},
-        values::SchematizedValues,
-    },
+    exec::{query::Query, values::SchematizedValues},
     io::pager::PagerGuard,
     util::io::{SerdeCtx, Size},
+    Db,
 };
 
 /// A linear scan query.
@@ -37,9 +35,9 @@ impl Query for LinearScan<'_> {
     type Item<'a> = SimpleRecord<'static, SchematizedValues<'static>>;
 
     #[instrument(name = "TableLinearScan", level = "debug", skip_all)]
-    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
-            let (page_guard, state) = self.get_or_init_state(ctx).await?;
+            let (page_guard, state) = self.get_or_init_state(db).await?;
             let page = page_guard.read().await;
 
             if state.rem_total == 0 {
@@ -52,7 +50,7 @@ impl Query for LinearScan<'_> {
                     .header
                     .next_page_id
                     .expect("bug: counters aren't synchronized");
-                Self::load_next_state_for_page(state, ctx, next_page_id).await?;
+                Self::load_next_state_for_page(db, state, next_page_id).await?;
                 page.release();
                 debug!("moving to next page in the sequence");
                 continue;
@@ -88,22 +86,19 @@ impl<'s> LinearScan<'s> {
         }
     }
 
-    async fn get_or_init_state(
-        &mut self,
-        ctx: &QueryCtx<'_>,
-    ) -> DbResult<(PagerGuard<HeapPage>, &mut State)> {
+    async fn get_or_init_state(&mut self, db: &Db) -> DbResult<(PagerGuard<HeapPage>, &mut State)> {
         match &mut self.state {
-            Some(state) => Ok((ctx.pager.get::<HeapPage>(state.page_id).await?, state)),
+            Some(state) => Ok((db.pager().get::<HeapPage>(state.page_id).await?, state)),
             state @ None => {
                 // TODO: Move this to upper level so that it doesn't get
                 // repeated in, e.g., Delete implementation.
                 debug!("fetching table schema");
-                let table_object = Object::find(ctx, self.table_name).await?;
+                let table_object = Object::find(db, self.table_name).await?;
                 let first_page_id = table_object.page_id;
                 let table_schema = table_object.try_into_table_schema()?;
 
                 debug!("loading first page of sequence");
-                let guard = ctx.pager.get::<HeapPage>(first_page_id).await?;
+                let guard = db.pager().get::<HeapPage>(first_page_id).await?;
                 let page = guard.read().await;
 
                 let seq_header = page.header.seq_header.as_ref().expect("first page");
@@ -126,12 +121,8 @@ impl<'s> LinearScan<'s> {
         }
     }
 
-    async fn load_next_state_for_page(
-        state: &mut State,
-        ctx: &QueryCtx<'_>,
-        page_id: PageId,
-    ) -> DbResult<()> {
-        let guard = ctx.pager.get::<HeapPage>(page_id).await?;
+    async fn load_next_state_for_page(db: &Db, state: &mut State, page_id: PageId) -> DbResult<()> {
+        let guard = db.pager().get::<HeapPage>(page_id).await?;
         let page = guard.read().await;
 
         state.page_id = page_id;

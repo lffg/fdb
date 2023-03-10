@@ -4,14 +4,15 @@ use crate::{
         table_schema::TableSchema,
     },
     error::{DbResult, Error},
-    exec::query::{self, Query, QueryCtx},
+    exec::query::{self, Query},
+    Db,
 };
 
 impl Object {
     /// Tries to find the given object from the database.
-    pub async fn find(ctx: &QueryCtx<'_>, name: &str) -> DbResult<Self> {
+    pub async fn find(db: &Db, name: &str) -> DbResult<Self> {
         let mut query = query::object::Select::new();
-        while let Some(object) = query.next(ctx).await? {
+        while let Some(object) = query.next(db).await? {
             if object.name == name {
                 return Ok(object);
             }

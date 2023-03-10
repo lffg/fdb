@@ -4,9 +4,10 @@ use tracing::instrument;
 use crate::{
     error::DbResult,
     exec::{
-        query::{table::LinearScan, Query, QueryCtx},
+        query::{table::LinearScan, Query},
         values::Values,
     },
+    Db,
 };
 
 /// A select query.
@@ -21,9 +22,9 @@ impl Query for Select<'_> {
     type Item<'a> = Values;
 
     #[instrument(name = "TableSelect", level = "debug", skip_all)]
-    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
-            let result = if let Some(record) = self.linear_scan.next(ctx).await? {
+            let result = if let Some(record) = self.linear_scan.next(db).await? {
                 if record.is_deleted() {
                     continue;
                 }

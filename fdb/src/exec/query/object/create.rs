@@ -10,9 +10,10 @@ use crate::{
         record::simple_record::{self, SimpleRecord},
     },
     error::{DbResult, Error},
-    exec::query::{seq_h, Query, QueryCtx},
+    exec::query::{seq_h, Query},
     io::pager::Pager,
     util::io::{SerdeCtx, Size},
+    Db,
 };
 
 const FIRST_SCHEMA_PAGE_ID: PageId = PageId::new_u32(2);
@@ -27,11 +28,11 @@ impl Query for Create<'_> {
     type Item<'a> = ();
 
     #[instrument(name = "ObjectCreate", level = "debug", skip_all)]
-    async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
+    async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         let page_id = FIRST_SCHEMA_PAGE_ID;
 
         debug!(?page_id, "getting page");
-        let guard = ctx.pager.get::<HeapPage>(page_id).await?;
+        let guard = db.pager().get::<HeapPage>(page_id).await?;
         let mut page = guard.write().await;
         let last_page_id = seq_h!(mut page).last_page_id;
 
@@ -39,15 +40,15 @@ impl Query for Create<'_> {
             // If there are more than one page in the heap sequence, one must
             // write into the last page in the sequence.
             debug!(?page_id, "getting last page");
-            let last_guard = ctx.pager.get::<HeapPage>(last_page_id).await?;
+            let last_guard = db.pager().get::<HeapPage>(last_page_id).await?;
             let mut last = last_guard.write().await;
 
-            let mlp = write(ctx.pager, &mut last, self.object).await?;
+            let mlp = write(db.pager(), &mut last, self.object).await?;
             last.flush();
             mlp
         } else {
             // Otherwise, one is in the first page.
-            write(ctx.pager, &mut page, self.object).await?
+            write(db.pager(), &mut page, self.object).await?
         };
 
         seq_h!(mut page).record_count += 1;
@@ -59,7 +60,7 @@ impl Query for Create<'_> {
 
         page.flush();
 
-        ctx.pager.flush_all().await?;
+        db.pager().flush_all().await?;
 
         Ok(None)
     }
