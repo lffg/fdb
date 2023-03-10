@@ -6,7 +6,6 @@ use std::{
 };
 
 use buff::Buff;
-use drop_bomb::DropBomb;
 use tokio::sync::{
     mpsc::{self},
     Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard,
@@ -137,6 +136,7 @@ impl Pager {
     /// must guarantee that there are no other active guards (read or write) to
     /// the first page.
     #[instrument(skip_all)]
+    #[must_use]
     pub async fn alloc<S: SpecificPage>(&self) -> DbResult<PagerGuard<S>> {
         info!(ty = ?S::ty(), "allocating page");
 
@@ -267,7 +267,7 @@ where
         PagerReadGuard {
             guard: self.inner.read().await,
             notifier: self.notifier.clone(),
-            bomb: DropBomb::new("forgot to call `release` on pager read guard"),
+            manually_dropped: false,
             _specific: PhantomData,
         }
     }
@@ -279,7 +279,7 @@ where
         PagerWriteGuard {
             guard: self.inner.write().await,
             notifier: self.notifier.clone(),
-            bomb: DropBomb::new("forgot to call `flush` on pager write guard"),
+            manually_dropped: false,
             _specific: PhantomData,
         }
     }
@@ -289,7 +289,7 @@ where
 pub struct PagerReadGuard<'a, S> {
     guard: RwLockReadGuard<'a, Page>,
     notifier: PageNotificationSender,
-    bomb: DropBomb,
+    manually_dropped: bool,
     _specific: PhantomData<S>,
 }
 
@@ -302,7 +302,7 @@ where
         self.notifier
             .send((self.guard.id(), PageRefType::Read))
             .expect("receiver must be alive");
-        self.bomb.defuse();
+        self.manually_dropped = true;
         info!(ty = ?S::ty(), "released read guard");
     }
 }
@@ -318,11 +318,19 @@ where
     }
 }
 
+impl<S> Drop for PagerReadGuard<'_, S> {
+    fn drop(&mut self) {
+        if !self.manually_dropped {
+            info!("did not release read pager guard");
+        }
+    }
+}
+
 /// A page write guard. Exclusive.
 pub struct PagerWriteGuard<'a, S> {
     guard: RwLockWriteGuard<'a, Page>,
     notifier: PageNotificationSender,
-    bomb: DropBomb,
+    manually_dropped: bool,
     _specific: PhantomData<S>,
 }
 
@@ -335,7 +343,7 @@ where
         self.notifier
             .send((self.guard.id(), PageRefType::Write))
             .expect("receiver must be alive");
-        self.bomb.defuse();
+        self.manually_dropped = true;
         info!(ty = ?S::ty(), "flushed write guard");
     }
 }
@@ -357,6 +365,15 @@ where
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.guard.cast_mut()
+    }
+}
+
+impl<S> Drop for PagerWriteGuard<'_, S> {
+    fn drop(&mut self) {
+        if !self.manually_dropped {
+            // TODO: Handle this with more robustness.
+            info!("did not flush write pager guard");
+        }
     }
 }
 
