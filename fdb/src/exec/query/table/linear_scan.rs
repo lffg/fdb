@@ -56,8 +56,9 @@ impl Query for LinearScan<'_> {
             }
 
             let serde_ctx = simple_record::TableRecordCtx {
-                schema: &state.table_schema,
+                page_id: state.page_id,
                 offset: state.offset,
+                schema: &state.table_schema,
             };
 
             let record = page.read_at(state.offset, |buf| {

@@ -54,7 +54,8 @@ impl Query for Select {
                 continue;
             }
 
-            let serde_ctx = simple_record::OffsetCtx {
+            let serde_ctx = simple_record::SimpleCtx {
+                page_id: state.page_id,
                 offset: state.offset,
             };
 

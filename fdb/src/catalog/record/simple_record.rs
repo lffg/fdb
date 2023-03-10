@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    catalog::table_schema::TableSchema,
+    catalog::{page::PageId, table_schema::TableSchema},
     error::DbResult,
     util::io::{Serde, SerdeCtx, Size},
 };
@@ -17,6 +17,10 @@ pub struct SimpleRecord<'d, D>
 where
     D: Clone,
 {
+    /// The [`PageId`] of the page on which this record is stored.
+    ///
+    /// This value is not serialized.
+    page_id: PageId,
     /// The offset of the record in the table.
     ///
     /// This value is not serialized.
@@ -42,8 +46,9 @@ where
     D: Size + Clone,
 {
     /// Constructs a new record.
-    pub fn new(offset: u16, data: Cow<'d, D>) -> SimpleRecord<'d, D> {
+    pub fn new(page_id: PageId, offset: u16, data: Cow<'d, D>) -> SimpleRecord<'d, D> {
         let mut record = SimpleRecord {
+            page_id,
             offset,
             total_size: 0, // <---- One updates this below.
             is_deleted: false,
@@ -57,6 +62,11 @@ where
     /// Checks whether the record is deleted.
     pub fn is_deleted(&self) -> bool {
         self.is_deleted
+    }
+
+    /// Returns the record's [`PageId`].
+    pub fn page_id(&self) -> PageId {
+        self.page_id
     }
 
     /// Returns the record's offset.
@@ -158,6 +168,7 @@ where
         }
 
         Ok(SimpleRecord {
+            page_id: ctx.page_id,
             offset: ctx.offset,
             total_size,
             is_deleted,
@@ -168,7 +179,7 @@ where
 }
 
 /// Serde implementation for general [`Serde`] types.
-impl<D> SerdeCtx<'_, (), OffsetCtx> for SimpleRecord<'_, D>
+impl<D> SerdeCtx<'_, (), SimpleCtx> for SimpleRecord<'_, D>
 where
     D: for<'a> Serde<'a> + Clone,
 {
@@ -180,7 +191,7 @@ where
         Ok(())
     }
 
-    fn deserialize(buf: &mut buff::Buff<'_>, ctx: OffsetCtx) -> DbResult<Self>
+    fn deserialize(buf: &mut buff::Buff<'_>, ctx: SimpleCtx) -> DbResult<Self>
     where
         Self: Sized,
     {
@@ -201,6 +212,7 @@ where
         }
 
         Ok(SimpleRecord {
+            page_id: ctx.page_id,
             offset: ctx.offset,
             total_size,
             is_deleted,
@@ -210,7 +222,9 @@ where
     }
 }
 
-pub struct OffsetCtx {
+pub struct SimpleCtx {
+    /// The [`PageId`].
+    pub page_id: PageId,
     /// The starting offset of the record.
     ///
     /// Notice that this *may* not be the *actual* page offset. It *may* be an
@@ -219,6 +233,8 @@ pub struct OffsetCtx {
 }
 
 pub struct TableRecordCtx<'a> {
+    /// The [`PageId`].
+    pub page_id: PageId,
     /// The table schema associated with the record.
     pub schema: &'a TableSchema,
     /// The starting offset of the record. For more info, see [`OffsetCtx`].

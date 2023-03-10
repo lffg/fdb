@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-/// An select query.
+/// A select query.
 pub struct Select<'a> {
     linear_scan: LinearScan<'a>,
 }

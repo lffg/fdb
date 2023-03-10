@@ -68,10 +68,12 @@ impl Query for Create<'_> {
 /// Writes the given `TableSchema` and, if allocated a new page, returns its ID.
 #[instrument(skip_all)]
 async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<Option<PageId>> {
-    let serde_ctx = simple_record::OffsetCtx {
+    let serde_ctx = simple_record::SimpleCtx {
+        page_id: page.id(),
         offset: page.header.free_offset,
     };
-    let record = SimpleRecord::<Object>::new(serde_ctx.offset, Cow::Borrowed(schema));
+    let record =
+        SimpleRecord::<Object>::new(serde_ctx.page_id, serde_ctx.offset, Cow::Borrowed(schema));
     let size = record.size();
 
     if page.can_accommodate(size) {

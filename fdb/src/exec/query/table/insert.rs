@@ -83,10 +83,15 @@ async fn write(
     record: &SchematizedValues<'_>,
 ) -> DbResult<Option<PageId>> {
     let serde_ctx = simple_record::TableRecordCtx {
-        schema,
+        page_id: page.id(),
         offset: page.offset(),
+        schema,
     };
-    let record = SimpleRecord::<SchematizedValues>::new(serde_ctx.offset, Cow::Borrowed(record));
+    let record = SimpleRecord::<SchematizedValues>::new(
+        serde_ctx.page_id,
+        serde_ctx.offset,
+        Cow::Borrowed(record),
+    );
     let size = record.size();
 
     if page.can_accommodate(size) {
