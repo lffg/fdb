@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use tracing::trace;
+use tracing::{debug, instrument};
 
 use crate::{
     catalog::{object::Object, page::HeapPage, record::simple_record, table_schema::TableSchema},
@@ -27,6 +27,7 @@ impl Query for Delete<'_> {
     // TODO: Add `deleted_count`.
     type Item<'a> = ();
 
+    #[instrument(name = "TableDelete", level = "debug", skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         loop {
             let out = if let Some(mut record) = self.linear_scan.next(ctx).await? {
@@ -38,7 +39,7 @@ impl Query for Delete<'_> {
 
                 let page_id = record.page_id();
                 let offset = record.offset();
-                trace!(?page_id, "allocating page for write");
+                debug!(?page_id, "allocating page for write");
                 let guard = ctx.pager.get::<HeapPage>(page_id).await?;
                 let mut page = guard.write().await;
 

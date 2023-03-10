@@ -7,6 +7,7 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
+use tracing::info;
 
 use crate::{
     catalog::page::PageId,
@@ -40,6 +41,7 @@ impl DiskManager {
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
     pub async fn read_page(&mut self, page_id: PageId, buf: &mut [u8]) -> DbResult<()> {
+        info!(?page_id, "reading page from disk");
         assert_eq!(buf.len() as u64, PAGE_SIZE);
 
         let size = self.file.metadata().await?.len();
@@ -68,6 +70,7 @@ impl DiskManager {
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
     pub async fn write_page(&mut self, page_id: PageId, buf: &[u8]) -> DbResult<()> {
+        info!(?page_id, "writing page to disk");
         assert_eq!(buf.len() as u64, PAGE_SIZE);
 
         self.file.seek(SeekFrom::Start(page_id.offset())).await?;

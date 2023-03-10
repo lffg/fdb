@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use tracing::instrument;
 
 use crate::{
     error::DbResult,
@@ -19,6 +20,7 @@ impl Query for Select<'_> {
     // same order as the user requested).
     type Item<'a> = Values;
 
+    #[instrument(name = "TableSelect", level = "debug", skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         loop {
             let result = if let Some(record) = self.linear_scan.next(ctx).await? {

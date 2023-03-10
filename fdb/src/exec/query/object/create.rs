@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use tracing::{error, instrument, trace};
+use tracing::{debug, error, instrument};
 
 use crate::{
     catalog::{
@@ -26,11 +26,11 @@ pub struct Create<'s> {
 impl Query for Create<'_> {
     type Item<'a> = ();
 
-    #[instrument(skip_all)]
+    #[instrument(name = "ObjectCreate", level = "debug", skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         let page_id = FIRST_SCHEMA_PAGE_ID;
 
-        trace!(?page_id, "getting page");
+        debug!(?page_id, "getting page");
         let guard = ctx.pager.get::<HeapPage>(page_id).await?;
         let mut page = guard.write().await;
         let last_page_id = seq_h!(mut page).last_page_id;
@@ -38,7 +38,7 @@ impl Query for Create<'_> {
         let maybe_new_last_page_id = if last_page_id != page_id {
             // If there are more than one page in the heap sequence, one must
             // write into the last page in the sequence.
-            trace!(?page_id, "getting last page");
+            debug!(?page_id, "getting last page");
             let last_guard = ctx.pager.get::<HeapPage>(last_page_id).await?;
             let mut last = last_guard.write().await;
 
@@ -66,7 +66,7 @@ impl Query for Create<'_> {
 }
 
 /// Writes the given `TableSchema` and, if allocated a new page, returns its ID.
-#[instrument(skip_all)]
+#[instrument(level = "debug", skip_all)]
 async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<Option<PageId>> {
     let serde_ctx = simple_record::SimpleCtx {
         page_id: page.id(),
@@ -77,7 +77,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
     let size = record.size();
 
     if page.can_accommodate(size) {
-        trace!("fit right in");
+        debug!("fit right in");
         page.write(|buf| record.serialize(buf, ()))?;
         page.header.record_count += 1;
 
@@ -86,7 +86,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
 
     // If the given page can't accommodate the given record, one must allocate a
     // new page.
-    trace!("allocating new page to insert");
+    debug!("allocating new page to insert");
     let new_page_guard = pager.alloc::<HeapPage>().await?;
     let new_page = new_page_guard.write().await;
     let new_page_id = new_page.id();

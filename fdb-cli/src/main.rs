@@ -122,7 +122,7 @@ fn input<T: FromStr>(prompt: &str) -> T {
 // TODO: While this database doesn't support user-defined tables (aka. `CREATE
 // TABLE`), during bootstrap, one allocates a specific catalog to use for
 // testing purposes.
-#[instrument(skip_all)]
+#[instrument(level = "debug", skip_all)]
 pub async fn define_test_catalog(db: &Db) -> DbResult<()> {
     let test_page_guard = db.pager().alloc::<HeapPage>().await?;
     let test_page = test_page_guard.write().await;

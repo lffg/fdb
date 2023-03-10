@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use tracing::trace;
+use tracing::{debug, instrument};
 
 use crate::{
     catalog::{
@@ -35,6 +35,7 @@ struct State {
 impl Query for LinearScan<'_> {
     type Item<'a> = SimpleRecord<'static, SchematizedValues<'static>>;
 
+    #[instrument(name = "TableLinearScan", level = "debug", skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         loop {
             let (page_guard, state) = self.get_or_init_state(ctx).await?;
@@ -51,7 +52,7 @@ impl Query for LinearScan<'_> {
                     .next_page_id
                     .expect("bug: counters aren't synchronized");
                 page.release();
-                trace!("moving to next page in the sequence");
+                debug!("moving to next page in the sequence");
                 continue;
             }
 
@@ -68,6 +69,8 @@ impl Query for LinearScan<'_> {
             state.offset += record.size() as u16;
             state.rem_total -= 1;
             state.rem_page -= 1;
+
+            page.release();
 
             return Ok(Some(record));
         }
@@ -92,12 +95,12 @@ impl<'s> LinearScan<'s> {
             state @ None => {
                 // TODO: Move this to upper level so that it doesn't get
                 // repeated in, e.g., Delete implementation.
-                trace!("fetching table schema");
+                debug!("fetching table schema");
                 let table_object = Object::find(ctx, self.table_name).await?;
                 let first_page_id = table_object.page_id;
                 let table_schema = table_object.try_into_table_schema()?;
 
-                trace!("loading first page of sequence");
+                debug!("loading first page of sequence");
                 let guard = ctx.pager.get::<HeapPage>(first_page_id).await?;
                 let page = guard.read().await;
 

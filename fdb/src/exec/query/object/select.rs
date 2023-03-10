@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use tracing::{instrument, trace};
+use tracing::{debug, instrument};
 
 use crate::{
     catalog::{
@@ -33,7 +33,7 @@ struct State {
 impl Query for Select {
     type Item<'a> = Object;
 
-    #[instrument(skip_all)]
+    #[instrument(name = "ObjectSelect", level = "debug", skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         loop {
             let (page_guard, state) = self.get_or_init_state(ctx).await?;
@@ -50,7 +50,7 @@ impl Query for Select {
                     .next_page_id
                     .expect("bug: counters aren't synchronized");
                 page.release();
-                trace!("moving to next page in the sequence");
+                debug!("moving to next page in the sequence");
                 continue;
             }
 
@@ -66,6 +66,8 @@ impl Query for Select {
             state.offset += record.size() as u16;
             state.rem_total -= 1;
             state.rem_page -= 1;
+
+            page.release();
 
             if record.is_deleted() {
                 continue;
@@ -89,7 +91,7 @@ impl Select {
         match &mut self.state {
             Some(state) => Ok((ctx.pager.get::<HeapPage>(state.page_id).await?, state)),
             state @ None => {
-                trace!(page = ?FIRST_SCHEMA_PAGE_ID, "reading first page from sequence");
+                debug!(page = ?FIRST_SCHEMA_PAGE_ID, "reading first page from sequence");
                 let guard = ctx.pager.get::<HeapPage>(FIRST_SCHEMA_PAGE_ID).await?;
                 let page = guard.read().await;
 
