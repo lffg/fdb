@@ -124,7 +124,7 @@ fn input<T: FromStr>(prompt: &str) -> T {
 // testing purposes.
 #[instrument(level = "debug", skip_all)]
 pub async fn define_test_catalog(db: &Db) -> DbResult<()> {
-    let test_page_guard = db.pager().alloc::<HeapPage>().await?;
+    let test_page_guard = db.pager().alloc(HeapPage::new_seq_first).await?;
     let test_page = test_page_guard.write().await;
 
     let object = Object {

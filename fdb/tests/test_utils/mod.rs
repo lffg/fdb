@@ -85,7 +85,7 @@ async fn test_path() -> PathBuf {
 
 // TODO: Remove me.
 pub async fn define_test_catalog(db: &Db) -> DbResult<()> {
-    let test_page_guard = db.pager().alloc::<HeapPage>().await?;
+    let test_page_guard = db.pager().alloc(HeapPage::new_seq_first).await?;
     let test_page = test_page_guard.write().await;
 
     let object = Object {

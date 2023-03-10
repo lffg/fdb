@@ -53,10 +53,12 @@ impl SpecificPage for FirstPage {
         PageId::new_u32(1)
     }
 
-    fn default_with_id(page_id: PageId) -> Self {
-        assert_eq!(page_id.get(), 1, "first page must have page id 1");
+    super::impl_cast_methods!(Page::First => FirstPage);
+}
 
-        Self {
+impl FirstPage {
+    pub fn new() -> Self {
+        FirstPage {
             header: MainHeader {
                 file_format_version: 1,
                 page_count: 1,
@@ -65,8 +67,12 @@ impl SpecificPage for FirstPage {
             },
         }
     }
+}
 
-    super::impl_cast_methods!(Page::First => FirstPage);
+impl Default for FirstPage {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// The database header.

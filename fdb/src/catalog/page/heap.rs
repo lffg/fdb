@@ -58,23 +58,6 @@ impl SpecificPage for HeapPage {
         self.header.id
     }
 
-    fn default_with_id(page_id: PageId) -> Self {
-        let header = Header {
-            id: page_id,
-            seq_header: Some(SeqHeader {
-                last_page_id: page_id,
-                page_count: 1,
-                record_count: 0,
-            }),
-            next_page_id: Some(page_id),
-            record_count: 0,
-            free_offset: 0,
-        };
-        let bytes = vec![0; PAGE_SIZE as usize - header.size() as usize];
-
-        Self { header, bytes }
-    }
-
     super::impl_cast_methods!(Page::Heap => HeapPage);
 }
 
@@ -137,6 +120,38 @@ impl HeapPage {
     /// Returns the current offset.
     pub fn offset(&self) -> u16 {
         self.header.free_offset
+    }
+
+    /// Constructs the first page of a heap page sequence.
+    pub fn new_seq_first(page_id: PageId) -> Self {
+        let header = Header {
+            id: page_id,
+            seq_header: Some(SeqHeader {
+                last_page_id: page_id,
+                page_count: 1,
+                record_count: 0,
+            }),
+            next_page_id: None,
+            record_count: 0,
+            free_offset: 0,
+        };
+        let bytes = vec![0; PAGE_SIZE as usize - header.size() as usize];
+
+        Self { header, bytes }
+    }
+
+    /// Constructs a heap page sequence node (i.e., not the first).
+    pub fn new_seq_node(page_id: PageId) -> Self {
+        let header = Header {
+            id: page_id,
+            seq_header: None,
+            next_page_id: Some(page_id),
+            record_count: 0,
+            free_offset: 0,
+        };
+        let bytes = vec![0; PAGE_SIZE as usize - header.size() as usize];
+
+        Self { header, bytes }
     }
 }
 

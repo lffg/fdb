@@ -137,7 +137,11 @@ impl Pager {
     /// the first page.
     #[instrument(level = "debug", skip_all)]
     #[must_use]
-    pub async fn alloc<S: SpecificPage>(&self) -> DbResult<PagerGuard<S>> {
+    pub async fn alloc<S, F>(&self, create: F) -> DbResult<PagerGuard<S>>
+    where
+        S: SpecificPage,
+        F: FnOnce(PageId) -> S,
+    {
         debug!(ty = ?S::ty(), "allocating page");
 
         let first_page_guard = self.get::<FirstPage>(PageId::new_u32(1)).await?;
@@ -146,7 +150,7 @@ impl Pager {
         first_page.header.page_count += 1;
 
         let page_id = PageId::new_u32(first_page.header.page_count);
-        let init = S::default_with_id(page_id);
+        let init = create(page_id);
 
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         self.flush_page(&mut *buf, &init).await?;

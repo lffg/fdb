@@ -1,7 +1,7 @@
 use tracing::{debug, instrument};
 
 use crate::{
-    catalog::page::{FirstPage, HeapPage, PageId, SpecificPage},
+    catalog::page::{FirstPage, HeapPage, PageId},
     error::{DbResult, Error},
     io::pager::Pager,
 };
@@ -17,7 +17,7 @@ pub async fn boot_first_page(pager: &mut Pager) -> DbResult<bool> {
         Err(Error::PageOutOfBounds(_)) => {
             debug!("first access; booting first page");
 
-            let first_page = FirstPage::default_with_id(PageId::FIRST);
+            let first_page = FirstPage::new();
 
             // SAFETY: This is the first page, no metadata is needed, yet.
             unsafe {
@@ -26,7 +26,7 @@ pub async fn boot_first_page(pager: &mut Pager) -> DbResult<bool> {
             }
 
             // Allocates an empty heap page to accommodate the database schema.
-            pager.alloc::<HeapPage>().await?;
+            pager.alloc(HeapPage::new_seq_first).await?;
 
             Ok(true)
         }

@@ -59,11 +59,11 @@ impl Query for Insert<'_> {
             write(ctx.pager, &mut page, &table_schema, &schematized_values).await?
         };
 
-        let seq_h = seq_h!(mut page);
-        seq_h.record_count += 1;
+        seq_h!(mut page).record_count += 1;
         if let Some(last_page_id) = maybe_new_last_page_id {
-            seq_h.last_page_id = last_page_id;
-            seq_h.page_count += 1;
+            page.header.next_page_id = Some(last_page_id);
+            seq_h!(mut page).last_page_id = last_page_id;
+            seq_h!(mut page).page_count += 1;
         }
 
         page.flush();
@@ -105,7 +105,7 @@ async fn write(
     // If the given page can't accommodate the given record, one must allocate a
     // new page.
     debug!("allocating new page to insert");
-    let new_page_guard = pager.alloc::<HeapPage>().await?;
+    let new_page_guard = pager.alloc(HeapPage::new_seq_node).await?;
     let mut new_page = new_page_guard.write().await;
     let new_page_id = new_page.id();
 

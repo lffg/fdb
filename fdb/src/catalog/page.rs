@@ -267,9 +267,6 @@ pub trait SpecificPage: Sized + for<'a> Serde<'a> {
 
     /// Casts a [`Page`] mutable reference to the specific type.
     fn cast_mut(page: &mut Page) -> &mut Self;
-
-    /// Returns a default page with the provided [`PageId`].
-    fn default_with_id(page_id: PageId) -> Self;
 }
 
 impl SpecificPage for Page {
@@ -299,10 +296,6 @@ impl SpecificPage for Page {
     #[inline(always)]
     fn cast_mut(page: &mut Page) -> &mut Self {
         page
-    }
-
-    fn default_with_id(_page_id: PageId) -> Self {
-        unimplemented!("must use specific page type to construct a default page");
     }
 }
 
