@@ -4,6 +4,12 @@ use buff::Buff;
 
 use crate::error::{DbResult, Error};
 
+/// Provides the size method.
+pub trait Size {
+    /// Returns the size of the serialized representation.
+    fn size(&self) -> u32;
+}
+
 /// Defines a common serialization/deserialization interface based in the
 /// [`Buff`] type.
 ///
@@ -27,24 +33,14 @@ pub trait Serde<'a>: Size {
 /// Same as [`Serde`], but with a deserialization context.
 ///
 /// See types which implement this trait for examples.
-pub trait SerdeCtx<'a>: Size {
-    type SerCtx<'ser>;
-
-    type DeCtx<'de>;
-
+pub trait SerdeCtx<'a, SerCtx, DeCtx>: Size {
     /// Serializes the page.
-    fn serialize(&self, buf: &mut Buff<'_>, ctx: Self::SerCtx<'_>) -> DbResult<()>;
+    fn serialize(&self, buf: &mut Buff<'_>, ctx: SerCtx) -> DbResult<()>;
 
     /// Deserializes the page.
-    fn deserialize(buf: &mut Buff<'a>, ctx: Self::DeCtx<'_>) -> DbResult<Self>
+    fn deserialize(buf: &mut Buff<'a>, ctx: DeCtx) -> DbResult<Self>
     where
         Self: Sized;
-}
-
-/// Provides the size method.
-pub trait Size {
-    /// Returns the size of the serialized representation.
-    fn size(&self) -> u32;
 }
 
 /// Asserts that the next `expected.len()` bytes are equal to `expected`.

@@ -46,11 +46,7 @@ impl Size for Value {
     }
 }
 
-impl SerdeCtx<'_> for Value {
-    type SerCtx<'ser> = ();
-
-    type DeCtx<'de> = TypeId;
-
+impl SerdeCtx<'_, (), TypeId> for Value {
     fn serialize(&self, buf: &mut buff::Buff, _ctx: ()) -> DbResult<()> {
         match self {
             Value::Bool(inner) => buf.write(*inner),

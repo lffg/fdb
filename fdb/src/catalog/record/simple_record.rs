@@ -49,11 +49,7 @@ pub struct Ctx<'a> {
 
 impl<'d, D> SimpleRecord<'d, D>
 where
-    D: for<'a, 'ser, 'de> SerdeCtx<
-            'a,
-            SerCtx<'ser> = &'ser TableSchema,
-            DeCtx<'de> = &'de TableSchema,
-        > + Clone,
+    D: for<'a, 'ser, 'de> SerdeCtx<'a, &'ser TableSchema, &'de TableSchema> + Clone,
 {
     /// Constructs a new record.
     pub fn new(offset: u16, data: Cow<'d, D>) -> SimpleRecord<'d, D> {
@@ -133,18 +129,10 @@ where
     }
 }
 
-impl<D> SerdeCtx<'_> for SimpleRecord<'_, D>
+impl<D> SerdeCtx<'_, Ctx<'_>, Ctx<'_>> for SimpleRecord<'_, D>
 where
-    D: for<'a, 'ser, 'de> SerdeCtx<
-            'a,
-            SerCtx<'ser> = &'ser TableSchema,
-            DeCtx<'de> = &'de TableSchema,
-        > + Clone,
+    D: for<'a, 'ser, 'de> SerdeCtx<'a, &'ser TableSchema, &'de TableSchema> + Clone,
 {
-    type SerCtx<'ser> = Ctx<'ser>;
-
-    type DeCtx<'de> = Ctx<'de>;
-
     fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: Ctx<'_>) -> DbResult<()> {
         buf.write(self.total_size);
         buf.write(self.is_deleted);

@@ -78,11 +78,7 @@ impl Size for SchematizedValues<'_> {
     }
 }
 
-impl SerdeCtx<'_> for SchematizedValues<'_> {
-    type SerCtx<'ser> = &'ser TableSchema;
-
-    type DeCtx<'de> = &'de TableSchema;
-
+impl SerdeCtx<'_, &TableSchema, &TableSchema> for SchematizedValues<'_> {
     fn serialize(&self, buf: &mut buff::Buff<'_>, schema: &TableSchema) -> DbResult<()> {
         for column in &schema.columns {
             let value = self.values.get(&column.name).expect("is schematized");
