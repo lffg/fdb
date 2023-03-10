@@ -10,7 +10,7 @@ use tokio::sync::{
     mpsc::{self},
     Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use tracing::{info, instrument};
+use tracing::{info, instrument, trace};
 
 use crate::{
     catalog::page::{FirstPage, Page, PageId, SpecificPage},
@@ -88,7 +88,7 @@ impl Pager {
 
         loop {
             let Ok((page_id, ref_type)) = rx.try_recv() else {
-                info!("flushed {flush_count} pages");
+                trace!("flushed {flush_count} pages");
                 return Ok(());
             };
 
@@ -119,7 +119,7 @@ impl Pager {
                         .await
                         .write_page(page_id, buf.get())
                         .await?;
-                    info!(?page_id, "flushed page to disk");
+                    trace!(?page_id, "flushed page to disk");
                 }
 
                 flush_count += 1;
@@ -138,7 +138,7 @@ impl Pager {
     #[instrument(skip_all)]
     #[must_use]
     pub async fn alloc<S: SpecificPage>(&self) -> DbResult<PagerGuard<S>> {
-        info!(ty = ?S::ty(), "allocating page");
+        trace!(ty = ?S::ty(), "allocating page");
 
         let first_page_guard = self.get::<FirstPage>(PageId::new_u32(1)).await?;
         let mut first_page = first_page_guard.write().await;
@@ -151,14 +151,14 @@ impl Pager {
         let mut buf = Box::new([0; PAGE_SIZE as usize]);
         self.flush_page(&mut *buf, &init).await?;
 
-        info!("flushing first page metadata...");
+        trace!("flushing first page metadata...");
         first_page.flush();
 
         let guard_inner = Arc::new(RwLock::new(init.into_page()));
         self.cache
             .insert_new(page_id, Arc::clone(&guard_inner))
             .await;
-        info!(?page_id, "page allocated");
+        trace!(?page_id, "page allocated");
 
         Ok(PagerGuard {
             inner: guard_inner,
@@ -185,7 +185,7 @@ impl Pager {
         debug_assert_eq!(buf.remaining(), 0);
 
         let id = page.id();
-        info!(?id, "will flush now");
+        trace!(?id, "will flush now");
 
         self.disk_manager
             .lock()
@@ -263,7 +263,7 @@ where
     /// Locks the page for reading. As the underlying lock is a `RwLock`, other
     /// read references may also exist at the same time.
     pub async fn read(&self) -> PagerReadGuard<'_, S> {
-        info!(ty = ?S::ty(), "acquiring read guard");
+        trace!(ty = ?S::ty(), "acquiring read guard");
         PagerReadGuard {
             guard: self.inner.read().await,
             notifier: self.notifier.clone(),
@@ -275,7 +275,7 @@ where
     /// Locks the page for writing. There may be no other references (read or
     /// write) concurrently.
     pub async fn write(&self) -> PagerWriteGuard<'_, S> {
-        info!(ty = ?S::ty(), "acquiring write guard");
+        trace!(ty = ?S::ty(), "acquiring write guard");
         PagerWriteGuard {
             guard: self.inner.write().await,
             notifier: self.notifier.clone(),
@@ -303,7 +303,7 @@ where
             .send((self.guard.id(), PageRefType::Read))
             .expect("receiver must be alive");
         self.manually_dropped = true;
-        info!(ty = ?S::ty(), "released read guard");
+        trace!(ty = ?S::ty(), "released read guard");
     }
 }
 
@@ -344,7 +344,7 @@ where
             .send((self.guard.id(), PageRefType::Write))
             .expect("receiver must be alive");
         self.manually_dropped = true;
-        info!(ty = ?S::ty(), "flushed write guard");
+        trace!(ty = ?S::ty(), "flushed write guard");
     }
 }
 

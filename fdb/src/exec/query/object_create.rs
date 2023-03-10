@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use tracing::{error, info, instrument};
+use tracing::{error, instrument, trace};
 
 use crate::{
     catalog::{
@@ -30,7 +30,7 @@ impl Executor for ObjectCreate<'_> {
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
         let page_id = FIRST_SCHEMA_PAGE_ID;
 
-        info!(?page_id, "getting page");
+        trace!(?page_id, "getting page");
         let guard = ctx.pager.get::<HeapPage>(page_id).await?;
         let mut page = guard.write().await;
         let last_page_id = seq_h!(page).last_page_id;
@@ -38,7 +38,7 @@ impl Executor for ObjectCreate<'_> {
         let maybe_new_last_page_id = if last_page_id != page_id {
             // If there are more than one page in the heap sequence, one must
             // write into the last page in the sequence.
-            info!(?page_id, "getting last page");
+            trace!(?page_id, "getting last page");
             let last_guard = ctx.pager.get::<HeapPage>(last_page_id).await?;
             let mut last = last_guard.write().await;
 
@@ -75,7 +75,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
     let size = record.size();
 
     if page.can_accommodate(size) {
-        info!("fit right in");
+        trace!("fit right in");
         page.write(|buf| record.serialize(buf, ()))?;
         page.header.record_count += 1;
 
@@ -84,7 +84,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
 
     // If the given page can't accommodate the given record, one must allocate a
     // new page.
-    info!("allocating new page to insert");
+    trace!("allocating new page to insert");
     let new_page_guard = pager.alloc::<HeapPage>().await?;
     let new_page = new_page_guard.write().await;
     let new_page_id = new_page.id();

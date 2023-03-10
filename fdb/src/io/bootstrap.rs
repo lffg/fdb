@@ -1,4 +1,4 @@
-use tracing::{info, instrument};
+use tracing::{instrument, trace};
 
 use crate::{
     catalog::page::{FirstPage, HeapPage, PageId, SpecificPage},
@@ -15,7 +15,7 @@ pub async fn boot_first_page(pager: &mut Pager) -> DbResult<bool> {
     match pager.get::<FirstPage>(PageId::FIRST).await {
         Ok(_) => Ok(false),
         Err(Error::PageOutOfBounds(_)) => {
-            info!("first access; booting first page");
+            trace!("first access; booting first page");
 
             let first_page = FirstPage::default_with_id(PageId::FIRST);
 
