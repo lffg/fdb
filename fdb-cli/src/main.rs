@@ -36,7 +36,7 @@ async fn main() -> DbResult<()> {
                 let name: String = input("name (text)> ");
                 let age: i32 = input("age (int)> ");
 
-                let insert_query = query::Insert::new(
+                let insert_query = query::table::Insert::new(
                     "chess_matches",
                     Values::from(HashMap::from([
                         ("id".into(), Value::Int(id)),
@@ -51,7 +51,7 @@ async fn main() -> DbResult<()> {
                 println!("ok");
             }
             "select" => {
-                let select_query = query::Select::new("chess_matches");
+                let select_query = query::table::Select::new("chess_matches");
 
                 println!("{}", "-".repeat(50));
                 db.execute(select_query, |row| {
@@ -127,7 +127,7 @@ pub async fn define_test_catalog(db: &Db) -> DbResult<()> {
         name: "chess_matches".into(),
     };
 
-    let query = query::ObjectCreate::new(&object);
+    let query = query::object::Create::new(&object);
     db.execute(query, |_| Ok::<(), ()>(())).await?.unwrap();
 
     test_page.flush();

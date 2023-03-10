@@ -2,17 +2,21 @@ use async_trait::async_trait;
 
 use crate::{error::DbResult, io::pager::Pager};
 
-mod object_create;
-pub use object_create::*;
+pub mod object {
+    mod create;
+    pub use create::*;
 
-mod object_select;
-pub use object_select::*;
+    mod select;
+    pub use select::*;
+}
 
-mod insert;
-pub use insert::*;
+pub mod table {
+    mod insert;
+    pub use insert::*;
 
-mod select;
-pub use select::*;
+    mod select;
+    pub use select::*;
+}
 
 /// Query execution context.
 pub struct QueryCtx<'a> {
@@ -28,7 +32,7 @@ pub struct QueryCtx<'a> {
 /// The element type `Item` is generic over the lifetime of [`QueryCtx`] since
 /// it may borrow from such a context's fields, especially from the [`Pager`].
 #[async_trait]
-pub trait Executor {
+pub trait Query {
     type Item<'a>;
 
     /// Produces the next value in the stream.
@@ -36,8 +40,11 @@ pub trait Executor {
 }
 
 macro_rules! seq_h {
-    ($guard:expr) => {
+    (mut $guard:expr) => {
         $guard.header.seq_header.as_mut().expect("first page")
+    };
+    ($guard:expr) => {
+        $guard.header.seq_header.as_ref().expect("first page")
     };
 }
 use seq_h;

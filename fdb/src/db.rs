@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::{
     error::DbResult,
-    exec::query::{Executor, QueryCtx},
+    exec::query::{Query, QueryCtx},
     io::{bootstrap, disk_manager::DiskManager, pager::Pager},
 };
 
@@ -28,7 +28,7 @@ impl Db {
     /// element.
     pub async fn execute<Q, E, F>(&self, mut query: Q, mut f: F) -> DbResult<Result<(), E>>
     where
-        Q: Executor,
+        Q: Query,
         F: for<'a> FnMut(Q::Item<'a>) -> Result<(), E>,
     {
         let ctx = QueryCtx { pager: &self.pager };

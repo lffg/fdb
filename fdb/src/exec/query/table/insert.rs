@@ -8,32 +8,41 @@ use crate::{
         object::Object,
         page::{HeapPage, PageId, SpecificPage},
         record::simple_record::{self, SimpleRecord},
+        table_schema::TableSchema,
     },
     error::{DbResult, Error},
-    exec::query::{seq_h, Executor, QueryCtx},
+    exec::{
+        query::{seq_h, Query, QueryCtx},
+        values::{SchematizedValues, Values},
+    },
     io::pager::Pager,
     util::io::{SerdeCtx, Size},
 };
 
-const FIRST_SCHEMA_PAGE_ID: PageId = PageId::new_u32(2);
-
-/// A create object operation.
-pub struct ObjectCreate<'s> {
-    object: &'s Object,
+/// An insert query.
+pub struct Insert<'s> {
+    /// The table name.
+    table_name: &'s str,
+    /// The values to be inserted.
+    values: Values,
 }
 
 #[async_trait]
-impl Executor for ObjectCreate<'_> {
+impl Query for Insert<'_> {
     type Item<'a> = ();
 
     #[instrument(skip_all)]
     async fn next<'a>(&mut self, ctx: &'a QueryCtx<'a>) -> DbResult<Option<Self::Item<'a>>> {
-        let page_id = FIRST_SCHEMA_PAGE_ID;
+        let object = Object::find(ctx, self.table_name).await?;
+        let page_id = object.page_id;
+
+        let table_schema = object.try_into_table_schema()?;
+        let schematized_values = self.values.schematize(&table_schema)?;
 
         trace!(?page_id, "getting page");
         let guard = ctx.pager.get::<HeapPage>(page_id).await?;
         let mut page = guard.write().await;
-        let last_page_id = seq_h!(page).last_page_id;
+        let last_page_id = seq_h!(mut page).last_page_id;
 
         let maybe_new_last_page_id = if last_page_id != page_id {
             // If there are more than one page in the heap sequence, one must
@@ -42,15 +51,15 @@ impl Executor for ObjectCreate<'_> {
             let last_guard = ctx.pager.get::<HeapPage>(last_page_id).await?;
             let mut last = last_guard.write().await;
 
-            let mlp = write(ctx.pager, &mut last, self.object).await?;
+            let mlp = write(ctx.pager, &mut last, &table_schema, &schematized_values).await?;
             last.flush();
             mlp
         } else {
             // Otherwise, one is in the first page.
-            write(ctx.pager, &mut page, self.object).await?
+            write(ctx.pager, &mut page, &table_schema, &schematized_values).await?
         };
 
-        let seq_h = seq_h!(page);
+        let seq_h = seq_h!(mut page);
         seq_h.record_count += 1;
         if let Some(last_page_id) = maybe_new_last_page_id {
             seq_h.last_page_id = last_page_id;
@@ -67,16 +76,22 @@ impl Executor for ObjectCreate<'_> {
 
 /// Writes the given `TableSchema` and, if allocated a new page, returns its ID.
 #[instrument(skip_all)]
-async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<Option<PageId>> {
-    let serde_ctx = simple_record::OffsetCtx {
-        offset: page.header.free_offset,
+async fn write(
+    pager: &Pager,
+    page: &mut HeapPage,
+    schema: &TableSchema,
+    record: &SchematizedValues<'_>,
+) -> DbResult<Option<PageId>> {
+    let serde_ctx = simple_record::TableRecordCtx {
+        schema,
+        offset: page.offset(),
     };
-    let record = SimpleRecord::<Object>::new(serde_ctx.offset, Cow::Borrowed(schema));
+    let record = SimpleRecord::<SchematizedValues>::new(serde_ctx.offset, Cow::Borrowed(record));
     let size = record.size();
 
     if page.can_accommodate(size) {
         trace!("fit right in");
-        page.write(|buf| record.serialize(buf, ()))?;
+        page.write(|buf| record.serialize(buf, serde_ctx))?;
         page.header.record_count += 1;
 
         return Ok(None);
@@ -99,7 +114,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
         )));
     }
 
-    page.write(|buf| record.serialize(buf, ()))?;
+    page.write(|buf| record.serialize(buf, serde_ctx))?;
     page.header.record_count += 1;
 
     new_page.flush();
@@ -107,8 +122,9 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
     Ok(Some(new_page_id))
 }
 
-impl<'s> ObjectCreate<'s> {
-    pub fn new(object: &'s Object) -> ObjectCreate<'s> {
-        Self { object }
+impl<'s> Insert<'s> {
+    /// Creates a new insert executor.
+    pub fn new(table_name: &'s str, values: Values) -> Insert<'s> {
+        Self { table_name, values }
     }
 }
