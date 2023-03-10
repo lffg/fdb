@@ -20,8 +20,7 @@ impl Db {
         let disk_manager = DiskManager::new(Path::new(path)).await?;
         let mut pager = Pager::new(disk_manager);
 
-        let (_, is_new) = bootstrap::boot_first_page(&mut pager).await?;
-
+        let is_new = bootstrap::boot_first_page(&mut pager).await?;
         Ok((Db { pager }, is_new))
     }
 

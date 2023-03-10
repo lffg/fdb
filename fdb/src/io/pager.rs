@@ -137,6 +137,7 @@ impl Pager {
     /// must guarantee that there are no other active guards (read or write) to
     /// the first page.
     #[instrument(skip_all)]
+    #[must_use]
     pub async fn alloc<S: SpecificPage>(&self) -> DbResult<PagerGuard<S>> {
         info!(ty = ?S::ty(), "allocating page");
 
