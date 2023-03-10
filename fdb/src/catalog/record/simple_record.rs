@@ -27,7 +27,7 @@ where
     is_deleted: bool,
     /// The record's bytes. Notice that the size of this section is stored as a
     /// 2-byte number.
-    // TODO: When `Buff` it a trait one might use a shared slice here.
+    // TODO(buff-trait): Use a slice here.
     data: Cow<'d, D>,
     /// The size of the padding section.
     ///
@@ -39,7 +39,7 @@ where
 
 impl<'d, D> SimpleRecord<'d, D>
 where
-    D: for<'a, 'ser, 'de> SerdeCtx<'a, &'ser TableSchema, &'de TableSchema> + Clone,
+    D: Size + Clone,
 {
     /// Constructs a new record.
     pub fn new(offset: u16, data: Cow<'d, D>) -> SimpleRecord<'d, D> {

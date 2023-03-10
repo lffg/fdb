@@ -8,25 +8,24 @@ use std::{
 use fdb::{
     catalog::{
         column::Column,
-        page::HeapPage,
+        object::{Object, ObjectType},
+        page::{HeapPage, SpecificPage},
         table_schema::TableSchema,
         ty::{PrimitiveTypeId, TypeId},
     },
     error::DbResult,
     exec::{query, value::Value, values::Values},
-    io::pager::Pager,
+    Db,
 };
-use tracing::info;
+use tracing::instrument;
 
 #[tokio::main]
 async fn main() -> DbResult<()> {
     setup_tracing();
 
-    let (db, first_access) = fdb::Db::open(Path::new("ignore/my-db")).await?;
-
+    let (db, first_access) = Db::open(Path::new("ignore/my-db")).await?;
     if first_access {
-        let pager = db.pager();
-        define_test_catalog(pager).await?;
+        define_test_catalog(&db).await?;
     }
 
     loop {
@@ -118,32 +117,29 @@ fn input<T: FromStr>(prompt: &str) -> T {
 // TODO: While this database doesn't support user-defined tables (aka. `CREATE
 // TABLE`), during bootstrap, one allocates a specific catalog to use for
 // testing purposes.
-pub async fn define_test_catalog(pager: &Pager) -> DbResult<()> {
-    info!("defining test catalog");
+#[instrument(skip_all)]
+pub async fn define_test_catalog(db: &Db) -> DbResult<()> {
+    let test_page_guard = db.pager().alloc::<HeapPage>().await?;
+    let test_page = test_page_guard.write().await;
 
-    let seq_first_guard = pager.alloc::<HeapPage>().await?;
-    let seq_first = seq_first_guard.write().await;
+    let object = Object {
+        ty: ObjectType::Table(get_chess_matches_schema()),
+        // TODO: The page allocation should be encapsulated in the create object
+        // implementation.
+        page_id: test_page.id(),
+        name: "chess_matches".into(),
+    };
 
-    // let first_page_guard = pager.get::<FirstPage>(PageId::FIRST).await?;
-    // let mut first_page = first_page_guard.write().await;
-    // first_page.object_schema = ObjectSchema {
-    //     next_id: None,
-    //     objects: vec![Object {
-    //         ty: ObjectType::Table(get_chess_matches_schema()),
-    //         page_id: seq_first.id(),
-    //         name: "chess_matches".into(),
-    //     }],
-    // };
-    // first_page.flush();
+    let query = query::ObjectCreate::new(&object);
+    db.execute(query, |_| Ok::<(), ()>(())).await?.unwrap();
 
-    seq_first.flush();
-
-    pager.flush_all().await?;
+    test_page.flush();
+    db.pager().flush_all().await?;
 
     Ok(())
 }
 
-fn _get_chess_matches_schema() -> TableSchema {
+fn get_chess_matches_schema() -> TableSchema {
     TableSchema {
         columns: vec![
             Column {

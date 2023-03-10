@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::{info, instrument};
 
 use crate::{
     catalog::page::{FirstPage, HeapPage, PageId, SpecificPage},
@@ -10,6 +10,7 @@ use crate::{
 ///
 /// It also returns a boolean that, if true, indicates that the page was booted
 /// for the first time.
+#[instrument(skip_all)]
 pub async fn boot_first_page(pager: &mut Pager) -> DbResult<bool> {
     match pager.get::<FirstPage>(PageId::FIRST).await {
         Ok(_) => Ok(false),

@@ -10,7 +10,7 @@ use tokio::sync::{
     mpsc::{self},
     Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard,
 };
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 use crate::{
     catalog::page::{FirstPage, Page, PageId, SpecificPage},

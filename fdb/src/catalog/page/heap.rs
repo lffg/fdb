@@ -78,6 +78,30 @@ impl SpecificPage for HeapPage {
     super::impl_cast_methods!(Page::Heap => HeapPage);
 }
 
+impl HeapPage {
+    /// Checks whether the page can accommodate `n` more bytes.
+    pub fn can_accommodate(&self, n: u32) -> bool {
+        // TODO(buff-trait): Use Buff API here instead.
+        self.bytes.len() >= self.header.free_offset as usize + n as usize
+    }
+
+    /// Writes using the given closure.
+    ///
+    /// Changes the underlying data and the underlying free_offset marker. NOTE
+    /// THAT THIS METHOD DOESN'T ALTER THE UNDERLYING RECORD COUNTER.
+    pub fn write<F, R>(&mut self, f: F) -> DbResult<R>
+    where
+        F: for<'a> Fn(&mut buff::Buff<'a>) -> DbResult<R>,
+    {
+        let mut buf = buff::Buff::new(&mut self.bytes[self.header.free_offset as usize..]);
+        let start = buf.offset();
+        let r = f(&mut buf)?;
+        let delta = buf.offset() - start;
+        self.header.free_offset += delta as u16;
+        Ok(r)
+    }
+}
+
 /// The [`HeapPage`] header. Not to be confused with [`SeqHeader`].
 #[derive(Debug)]
 pub struct Header {

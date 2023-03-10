@@ -2,6 +2,9 @@ use async_trait::async_trait;
 
 use crate::{error::DbResult, io::pager::Pager};
 
+mod object_create;
+pub use object_create::*;
+
 mod insert;
 pub use insert::*;
 
@@ -28,3 +31,10 @@ pub trait Executor {
     /// Produces the next value in the stream.
     async fn next<'a>(&mut self, ctx: &'a QueryCtx) -> DbResult<Option<Self::Item<'a>>>;
 }
+
+macro_rules! seq_h {
+    ($guard:expr) => {
+        $guard.header.seq_header.as_mut().expect("first page")
+    };
+}
+use seq_h;
