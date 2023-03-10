@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use fdb::{
+    catalog::object::Object,
     error::DbResult,
     exec::{query, value::Value, values::Values},
 };
@@ -12,9 +13,10 @@ async fn test_insert_select() -> DbResult<()> {
     // test_utils::setup_tracing(Some("debug"));
 
     let db = test_utils::TestDb::new_temp().await?;
+    let table = Object::find(&db, "test_table").await?.try_into_table()?;
 
     {
-        let first_select = query::table::Select::new("test_table");
+        let first_select = query::table::Select::new(&table);
         db.execute::<_, _, ()>(first_select, |_| {
             panic!("should be empty");
         })
@@ -47,17 +49,17 @@ async fn test_insert_select() -> DbResult<()> {
 
     {
         for value in values.iter() {
-            let ins = query::table::Insert::new("test_table", value.clone());
+            let ins = query::table::Insert::new(&table, value.clone());
             db.execute(ins, |_| Ok::<_, ()>(())).await?.unwrap();
         }
     }
 
     {
         let mut expected_rows: HashMap<_, _> = values
-            .into_iter()
+            .iter()
             .map(|value| (*value.get("id").unwrap().try_cast_int_ref().unwrap(), value))
             .collect();
-        let second_select = query::table::Select::new("test_table");
+        let second_select = query::table::Select::new(&table);
         db.execute(second_select, |row| {
             let expected = expected_rows
                 .remove(row.get("id").unwrap().try_cast_int_ref().unwrap())

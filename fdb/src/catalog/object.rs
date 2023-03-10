@@ -103,3 +103,29 @@ impl ObjectType {
         }
     }
 }
+
+/// A table object type.
+#[derive(Debug)]
+pub struct TableObject {
+    pub schema: TableSchema,
+    pub page_id: PageId,
+    pub name: String,
+}
+
+impl Object {
+    /// Returns the underlying [`TableObject`] or fails.
+    pub fn try_into_table(self) -> DbResult<TableObject> {
+        if let ObjectType::Table(schema) = self.ty {
+            Ok(TableObject {
+                schema,
+                page_id: self.page_id,
+                name: self.name,
+            })
+        } else {
+            Err(Error::Cast(format!(
+                "object `{}` is not a table",
+                self.name
+            )))
+        }
+    }
+}

@@ -29,7 +29,7 @@ pub fn setup_tracing(level: Option<&str>) {
     };
 
     let filter_layer = level
-        .map(|level| EnvFilter::new(level.to_string()))
+        .map(EnvFilter::new)
         .unwrap_or_else(|| EnvFilter::try_from_default_env().unwrap_or("warn".into()));
     let fmt_layer = layer().with_span_events(FmtSpan::NEW | FmtSpan::CLOSE);
 

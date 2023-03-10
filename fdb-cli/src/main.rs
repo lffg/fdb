@@ -29,6 +29,8 @@ async fn main() -> DbResult<()> {
     }
 
     loop {
+        let table = Object::find(&db, "chess_matches").await?.try_into_table()?;
+
         println!("Pick a command: `insert`, `select`, `delete` or `quit`.");
         match &*input::<String>("cmd> ") {
             "insert" => {
@@ -37,7 +39,7 @@ async fn main() -> DbResult<()> {
                 let age: i32 = input("age (int)> ");
 
                 let insert_query = query::table::Insert::new(
-                    "chess_matches",
+                    &table,
                     Values::from(HashMap::from([
                         ("id".into(), Value::Int(id)),
                         ("name".into(), Value::Text(name)),
@@ -51,7 +53,7 @@ async fn main() -> DbResult<()> {
                 println!("ok");
             }
             "select" => {
-                let select_query = query::table::Select::new("chess_matches");
+                let select_query = query::table::Select::new(&table);
 
                 println!("{}", "-".repeat(50));
                 db.execute(select_query, |row| {
@@ -69,7 +71,7 @@ async fn main() -> DbResult<()> {
                 let id: i32 = input("id (int)> ");
                 let pred =
                     move |val: &Values| *val.get("id").unwrap().try_cast_int_ref().unwrap() == id;
-                let del = query::table::Delete::new("chess_matches", &pred);
+                let del = query::table::Delete::new(&table, &pred);
                 db.execute(del, |_| Ok::<_, ()>(())).await?.unwrap();
                 println!("ok");
             }

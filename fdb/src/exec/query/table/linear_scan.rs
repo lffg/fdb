@@ -3,13 +3,15 @@ use tracing::{debug, instrument};
 
 use crate::{
     catalog::{
-        object::Object,
+        object::TableObject,
         page::{HeapPage, PageId},
         record::simple_record::{self, SimpleRecord},
-        table_schema::TableSchema,
     },
     error::DbResult,
-    exec::{query::Query, values::SchematizedValues},
+    exec::{
+        query::{seq_h, Query},
+        values::SchematizedValues,
+    },
     io::pager::PagerGuard,
     util::io::{SerdeCtx, Size},
     Db,
@@ -17,13 +19,12 @@ use crate::{
 
 /// A linear scan query.
 pub struct LinearScan<'a> {
-    table_name: &'a str,
+    table: &'a TableObject,
     state: Option<State>,
 }
 
 #[derive(Debug)]
 struct State {
-    table_schema: TableSchema,
     page_id: PageId,
     rem_total: u64,
     rem_page: u16,
@@ -37,7 +38,8 @@ impl Query for LinearScan<'_> {
     #[instrument(name = "TableLinearScan", level = "debug", skip_all)]
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
-            let (page_guard, state) = self.get_or_init_state(db).await?;
+            let (page_guard, state) =
+                Self::get_or_init_state(db, &mut self.state, self.table.page_id).await?;
             let page = page_guard.read().await;
 
             if state.rem_total == 0 {
@@ -59,7 +61,7 @@ impl Query for LinearScan<'_> {
             let serde_ctx = simple_record::TableRecordCtx {
                 page_id: state.page_id,
                 offset: state.offset,
-                schema: &state.table_schema,
+                schema: &self.table.schema,
             };
 
             let record = page.read_at(state.offset, |buf| {
@@ -77,46 +79,34 @@ impl Query for LinearScan<'_> {
     }
 }
 
-impl<'s> LinearScan<'s> {
+impl<'a> LinearScan<'a> {
     /// Creates a new insert executor.
-    pub fn new(table_name: &'s str) -> LinearScan<'s> {
-        Self {
-            table_name,
-            state: None,
-        }
+    pub fn new(table: &'a TableObject) -> LinearScan<'a> {
+        Self { table, state: None }
     }
 
-    async fn get_or_init_state(&mut self, db: &Db) -> DbResult<(PagerGuard<HeapPage>, &mut State)> {
-        match &mut self.state {
+    async fn get_or_init_state<'s>(
+        db: &Db,
+        state: &'s mut Option<State>,
+        first_page_id: PageId,
+    ) -> DbResult<(PagerGuard<HeapPage>, &'s mut State)> {
+        match state {
             Some(state) => Ok((db.pager().get::<HeapPage>(state.page_id).await?, state)),
             state @ None => {
-                // TODO: Move this to upper level so that it doesn't get
-                // repeated in, e.g., Delete implementation.
-                debug!("fetching table schema");
-                let table_object = Object::find(db, self.table_name).await?;
-                let first_page_id = table_object.page_id;
-                let table_schema = table_object.try_into_table_schema()?;
-
                 debug!("loading first page of sequence");
                 let guard = db.pager().get::<HeapPage>(first_page_id).await?;
                 let page = guard.read().await;
 
-                let seq_header = page.header.seq_header.as_ref().expect("first page");
-                let rem_total = seq_header.record_count;
-                let rem_page = page.header.record_count;
+                let state = state.insert(State {
+                    page_id: first_page_id,
+                    rem_total: seq_h!(page).record_count,
+                    rem_page: page.header.record_count,
+                    offset: page.first_offset(),
+                });
 
                 page.release();
 
-                Ok((
-                    guard,
-                    state.insert(State {
-                        table_schema,
-                        page_id: first_page_id,
-                        rem_total,
-                        rem_page,
-                        offset: 0,
-                    }),
-                ))
+                Ok((guard, state))
             }
         }
     }

@@ -8,7 +8,7 @@ use crate::{
         record::simple_record::{self, SimpleRecord},
     },
     error::DbResult,
-    exec::query::Query,
+    exec::query::{seq_h, Query},
     io::pager::PagerGuard,
     util::io::{SerdeCtx, Size},
     Db,
@@ -96,12 +96,7 @@ impl Select {
 
                 let state = state.insert(State {
                     page_id: FIRST_SCHEMA_PAGE_ID,
-                    rem_total: page // TODO: Dup with macro foo!(mut|ref, ...).
-                        .header
-                        .seq_header
-                        .as_ref()
-                        .expect("first page")
-                        .record_count,
+                    rem_total: seq_h!(page).record_count,
                     rem_page: page.header.record_count,
                     offset: page.first_offset(),
                 });

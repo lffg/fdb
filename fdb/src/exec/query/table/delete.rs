@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use tracing::{debug, instrument};
 
 use crate::{
-    catalog::{object::Object, page::HeapPage, record::simple_record, table_schema::TableSchema},
+    catalog::{object::TableObject, page::HeapPage, record::simple_record},
     error::DbResult,
     exec::{
         query::{table::LinearScan, Query},
@@ -17,8 +17,7 @@ pub type Pred = dyn Sync + for<'v> Fn(&'v Values) -> bool;
 
 /// A delete query.
 pub struct Delete<'a> {
-    table_name: &'a str,
-    table_schema: Option<TableSchema>,
+    table: &'a TableObject,
     linear_scan: LinearScan<'a>,
     pred: &'a Pred,
 }
@@ -44,11 +43,10 @@ impl Query for Delete<'_> {
                 let guard = db.pager().get::<HeapPage>(page_id).await?;
                 let mut page = guard.write().await;
 
-                // TODO: Remove this. Pass via `Delete` argument.
                 let ctx = simple_record::TableRecordCtx {
                     page_id,
                     offset,
-                    schema: self.get_or_init_schema(db).await?,
+                    schema: &self.table.schema,
                 };
 
                 record.set_deleted();
@@ -66,24 +64,11 @@ impl Query for Delete<'_> {
 }
 
 impl<'s> Delete<'s> {
-    pub fn new(table_name: &'s str, pred: &'s Pred) -> Delete<'s> {
+    pub fn new(table: &'s TableObject, pred: &'s Pred) -> Delete<'s> {
         Self {
-            table_name,
-            table_schema: None,
-            linear_scan: LinearScan::new(table_name),
+            linear_scan: LinearScan::new(table),
+            table,
             pred,
         }
-    }
-
-    /// Initializes the schema, if needed.
-    async fn get_or_init_schema(&mut self, db: &Db) -> DbResult<&mut TableSchema> {
-        Ok(match &mut self.table_schema {
-            Some(schema) => schema,
-            schema @ None => schema.insert(
-                Object::find(db, self.table_name)
-                    .await?
-                    .try_into_table_schema()?,
-            ),
-        })
     }
 }

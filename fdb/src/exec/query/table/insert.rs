@@ -5,7 +5,7 @@ use tracing::{debug, error, instrument};
 
 use crate::{
     catalog::{
-        object::Object,
+        object::TableObject,
         page::{HeapPage, PageId, SpecificPage},
         record::simple_record::{self, SimpleRecord},
         table_schema::TableSchema,
@@ -21,9 +21,9 @@ use crate::{
 };
 
 /// An insert query.
-pub struct Insert<'s> {
-    /// The table name.
-    table_name: &'s str,
+pub struct Insert<'a> {
+    /// The table object.
+    table: &'a TableObject,
     /// The values to be inserted.
     values: Values,
 }
@@ -34,11 +34,9 @@ impl Query for Insert<'_> {
 
     #[instrument(name = "TableInsert", level = "debug", skip_all)]
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
-        let object = Object::find(db, self.table_name).await?;
-        let page_id = object.page_id;
-
-        let table_schema = object.try_into_table_schema()?;
-        let schematized_values = self.values.schematize(&table_schema)?;
+        let page_id = self.table.page_id;
+        let table_schema = &self.table.schema;
+        let schematized_values = self.values.schematize(table_schema)?;
 
         debug!(?page_id, "getting page");
         let guard = db.pager().get::<HeapPage>(page_id).await?;
@@ -52,12 +50,12 @@ impl Query for Insert<'_> {
             let last_guard = db.pager().get::<HeapPage>(last_page_id).await?;
             let mut last = last_guard.write().await;
 
-            let mlp = write(db.pager(), &mut last, &table_schema, &schematized_values).await?;
+            let mlp = write(db.pager(), &mut last, table_schema, &schematized_values).await?;
             last.flush();
             mlp
         } else {
             // Otherwise, one is in the first page.
-            write(db.pager(), &mut page, &table_schema, &schematized_values).await?
+            write(db.pager(), &mut page, table_schema, &schematized_values).await?
         };
 
         seq_h!(mut page).record_count += 1;
@@ -128,9 +126,9 @@ async fn write(
     Ok(Some(new_page_id))
 }
 
-impl<'s> Insert<'s> {
+impl<'a> Insert<'a> {
     /// Creates a new insert executor.
-    pub fn new(table_name: &'s str, values: Values) -> Insert<'s> {
-        Self { table_name, values }
+    pub fn new(table: &'a TableObject, values: Values) -> Insert<'a> {
+        Self { table, values }
     }
 }

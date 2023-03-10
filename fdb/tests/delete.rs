@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use fdb::{
+    catalog::object::Object,
     error::DbResult,
     exec::{query, value::Value, values::Values},
 };
@@ -10,6 +11,7 @@ mod test_utils;
 #[tokio::test]
 async fn test_delete() -> DbResult<()> {
     let db = test_utils::TestDb::new_temp().await?;
+    let table = Object::find(&db, "test_table").await?.try_into_table()?;
 
     let values = &[
         Values::from(HashMap::from([
@@ -31,13 +33,13 @@ async fn test_delete() -> DbResult<()> {
 
     {
         for value in values.iter() {
-            let ins = query::table::Insert::new("test_table", value.clone());
+            let ins = query::table::Insert::new(&table, value.clone());
             db.execute(ins, |_| Ok::<_, ()>(())).await?.unwrap();
         }
     }
 
     {
-        let del = query::table::Delete::new("test_table", &|val| {
+        let del = query::table::Delete::new(&table, &|val| {
             *val.get("id").unwrap().try_cast_int_ref().unwrap() == 2
         });
         db.execute(del, |_| Ok::<_, ()>(())).await?.unwrap();
@@ -45,11 +47,11 @@ async fn test_delete() -> DbResult<()> {
 
     {
         let mut expected_rows: HashMap<_, _> = values
-            .into_iter()
+            .iter()
             .map(|value| (*value.get("id").unwrap().try_cast_int_ref().unwrap(), value))
             .filter(|(id, _)| *id != 2)
             .collect();
-        let second_select = query::table::Select::new("test_table");
+        let second_select = query::table::Select::new(&table);
         db.execute(second_select, |row| {
             let expected = expected_rows
                 .remove(row.get("id").unwrap().try_cast_int_ref().unwrap())

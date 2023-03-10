@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use tracing::instrument;
 
 use crate::{
+    catalog::object::TableObject,
     error::DbResult,
     exec::{
         query::{table::LinearScan, Query},
@@ -37,11 +38,10 @@ impl Query for Select<'_> {
     }
 }
 
-impl<'s> Select<'s> {
-    /// Creates a new insert executor.
-    pub fn new(table_name: &'s str) -> Select<'s> {
+impl<'a> Select<'a> {
+    pub fn new(table: &'a TableObject) -> Select<'a> {
         Self {
-            linear_scan: LinearScan::new(table_name),
+            linear_scan: LinearScan::new(table),
         }
     }
 }

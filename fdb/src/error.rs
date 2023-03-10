@@ -30,6 +30,10 @@ pub enum Error {
     #[error("utf-8 error while decoding string")]
     CorruptedUtf8,
 
+    /// Casting error.
+    #[error("cast error: {0}")]
+    Cast(String),
+
     /// Generic error.
     #[error("execution error: {0}")]
     ExecError(String),

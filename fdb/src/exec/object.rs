@@ -1,8 +1,5 @@
 use crate::{
-    catalog::{
-        object::{Object, ObjectType},
-        table_schema::TableSchema,
-    },
+    catalog::object::Object,
     error::{DbResult, Error},
     exec::query::{self, Query},
     Db,
@@ -17,18 +14,6 @@ impl Object {
                 return Ok(object);
             }
         }
-        Err(Error::ExecError(format!("table `{name}` does not exist")))
-    }
-
-    /// Returns the underlying [`TableSchema`] or fails.
-    pub fn try_into_table_schema(self) -> DbResult<TableSchema> {
-        if let ObjectType::Table(table) = self.ty {
-            Ok(table)
-        } else {
-            Err(Error::ExecError(format!(
-                "object `{}` is not a table",
-                self.name
-            )))
-        }
+        Err(Error::ExecError(format!("object `{name}` does not exist")))
     }
 }

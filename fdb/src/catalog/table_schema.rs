@@ -4,7 +4,7 @@ use crate::{
     util::io::{Serde, Size, VarList},
 };
 
-/// A table object schema.
+/// A table schema.
 #[derive(Debug, Clone)]
 pub struct TableSchema {
     /// The table columns.

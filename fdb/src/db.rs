@@ -31,7 +31,7 @@ impl Db {
         Q: Query,
         F: for<'a> FnMut(Q::Item<'a>) -> Result<(), E>,
     {
-        while let Some(item) = query.next(&self).await? {
+        while let Some(item) = query.next(self).await? {
             if let error @ Err(_) = f(item) {
                 return Ok(error);
             }
