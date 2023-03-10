@@ -16,6 +16,11 @@ pub mod table {
 
     mod select;
     pub use select::*;
+
+    // Private-implementation queries.
+
+    mod linear_scan;
+    use linear_scan::*;
 }
 
 /// Query execution context.
