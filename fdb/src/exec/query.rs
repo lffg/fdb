@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::{catalog::object::ObjectSchema, error::DbResult, io::pager::Pager};
+use crate::{error::DbResult, io::pager::Pager};
 
 mod insert;
 pub use insert::*;
@@ -11,7 +11,6 @@ pub use select::*;
 /// Query execution context.
 pub struct QueryCtx<'a> {
     pub pager: &'a Pager,
-    pub object_schema: &'a ObjectSchema,
 }
 
 /// Query execution trait. It is implemented for all database operations.

@@ -1,43 +1,8 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::{DbResult, Error},
-    util::io::{Serde, Size, VarList, VarString},
+    util::io::{Serde, Size, VarString},
 };
-
-/// The database object catalog; i.e., the collection of all the objects
-/// contained in the database. For more information on objects, see [`Object`].
-///
-/// The database object schema is linked multi-page structure which defines all
-/// database objects.
-#[derive(Debug, Clone)]
-pub struct ObjectSchema {
-    pub next_id: Option<PageId>,
-    pub objects: Vec<Object>,
-}
-
-impl Size for ObjectSchema {
-    fn size(&self) -> u32 {
-        self.next_id.size() + VarList::from(self.objects.as_slice()).size()
-    }
-}
-
-impl Serde<'_> for ObjectSchema {
-    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
-        self.next_id.serialize(buf)?;
-        VarList::from(self.objects.as_slice()).serialize(buf)?;
-        Ok(())
-    }
-
-    fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
-    where
-        Self: Sized,
-    {
-        Ok(ObjectSchema {
-            next_id: Option::<PageId>::deserialize(buf)?,
-            objects: VarList::deserialize(buf)?.into(),
-        })
-    }
-}
 
 /// The database object definition. From the database's point of view, an
 /// "object" is a structured group of information; for example, a table, an

@@ -1,10 +1,7 @@
 use buff::Buff;
 
 use crate::{
-    catalog::{
-        object::ObjectSchema,
-        page::{Page, PageId, PageType, SpecificPage},
-    },
+    catalog::page::{Page, PageId, PageType, SpecificPage},
     error::{DbResult, Error},
     util::io::{read_verify_eq, Serde, Size},
 };
@@ -12,20 +9,16 @@ use crate::{
 /// The database header size.
 pub const HEADER_SIZE: usize = 100;
 
-/// The first page, which contains the database header and the "heap page" that
-/// contains the database schema tuples.
-///
-/// The first 100 bytes are reserved for the header (although currently most of
-/// it remains unused). The next `PAGE_SIZE - HEADER_SIZE` bytes are used to
-/// simulate an usual heap page.
+/// The first page, which contains the database header. Currently, the database
+/// wastes `PAGE_SIZE - 100` bytes in space of the first page, for
+/// simplification's sake. In the future, this region will be used to store the
+/// first section of the database schema heap pages sequence.
 ///
 /// The first 10 bytes are reserved for the ASCII string `"fdb format"`.
 #[derive(Debug)]
 pub struct FirstPage {
     /// The database header.
     pub header: MainHeader,
-    /// The database object schema that follows the 100-byte main header.
-    pub object_schema: ObjectSchema,
 }
 
 impl Size for FirstPage {
@@ -33,14 +26,13 @@ impl Size for FirstPage {
         // One doesn't need to contabilize the type byte here, since the
         // database utilizes the `'f' as u8` code point as the first page's type
         // tag.
-        self.header.size() + self.object_schema.size()
+        self.header.size()
     }
 }
 
 impl Serde<'_> for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
-        self.object_schema.serialize(buf)?;
         buf.pad_end_bytes(0);
         Ok(())
     }
@@ -48,7 +40,6 @@ impl Serde<'_> for FirstPage {
     fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self> {
         Ok(FirstPage {
             header: MainHeader::deserialize(buf)?,
-            object_schema: ObjectSchema::deserialize(buf)?,
         })
     }
 }
@@ -70,10 +61,6 @@ impl SpecificPage for FirstPage {
                 file_format_version: 1,
                 page_count: 1,
                 first_free_list_page_id: None,
-            },
-            object_schema: ObjectSchema {
-                next_id: None,
-                objects: vec![],
             },
         }
     }

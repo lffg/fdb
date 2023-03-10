@@ -8,8 +8,7 @@ use std::{
 use fdb::{
     catalog::{
         column::Column,
-        object::{Object, ObjectSchema, ObjectType},
-        page::{FirstPage, HeapPage, PageId, SpecificPage},
+        page::HeapPage,
         table_schema::TableSchema,
         ty::{PrimitiveTypeId, TypeId},
     },
@@ -125,19 +124,18 @@ pub async fn define_test_catalog(pager: &Pager) -> DbResult<()> {
     let seq_first_guard = pager.alloc::<HeapPage>().await?;
     let seq_first = seq_first_guard.write().await;
 
-    let first_page_guard = pager.get::<FirstPage>(PageId::FIRST).await?;
-    let mut first_page = first_page_guard.write().await;
+    // let first_page_guard = pager.get::<FirstPage>(PageId::FIRST).await?;
+    // let mut first_page = first_page_guard.write().await;
+    // first_page.object_schema = ObjectSchema {
+    //     next_id: None,
+    //     objects: vec![Object {
+    //         ty: ObjectType::Table(get_chess_matches_schema()),
+    //         page_id: seq_first.id(),
+    //         name: "chess_matches".into(),
+    //     }],
+    // };
+    // first_page.flush();
 
-    first_page.object_schema = ObjectSchema {
-        next_id: None,
-        objects: vec![Object {
-            ty: ObjectType::Table(get_chess_matches_schema()),
-            page_id: seq_first.id(),
-            name: "chess_matches".into(),
-        }],
-    };
-
-    first_page.flush();
     seq_first.flush();
 
     pager.flush_all().await?;
@@ -145,7 +143,7 @@ pub async fn define_test_catalog(pager: &Pager) -> DbResult<()> {
     Ok(())
 }
 
-fn get_chess_matches_schema() -> TableSchema {
+fn _get_chess_matches_schema() -> TableSchema {
     TableSchema {
         columns: vec![
             Column {

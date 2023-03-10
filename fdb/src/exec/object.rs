@@ -1,4 +1,4 @@
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
     catalog::object::Object,
@@ -7,23 +7,9 @@ use crate::{
 };
 
 /// Tries to find the [`Object`] with the given name. Fails otherwise.
-#[instrument(skip(ctx))]
-pub fn find_object<'a>(ctx: &QueryCtx<'a>, name: &str) -> DbResult<Object> {
-    let next = ctx.object_schema.next_id;
-
-    let object = ctx
-        .object_schema
-        .objects
-        .iter()
-        .find(|object| object.name == name)
-        .cloned();
-
-    while object.is_none() && next.is_some() {
-        info!("next page");
-        todo!("TODO: implement next object schema page");
-    }
-
-    object.ok_or_else(|| Error::ExecError(format!("table object `{name}` does not exist")))
+#[instrument(skip(_ctx))]
+pub fn find_object<'a>(_ctx: &QueryCtx<'a>, name: &str) -> DbResult<Object> {
+    todo!();
 }
 
 /// Asserts that the given [`Object`] is a table.
