@@ -7,4 +7,4 @@ edition.workspace = true
 fdb = { path = "../fdb" }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tracing.workspace = true
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+tracing-subscriber.workspace = true

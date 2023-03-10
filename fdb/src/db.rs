@@ -26,7 +26,7 @@ impl Db {
 
     /// Executes the given query, passing the callback closure for each yielded
     /// element.
-    pub async fn execute<Q, E, F>(&self, mut query: Q, mut f: F) -> DbResult<Result<(), E>>
+    pub async fn execute<Q, F, E>(&self, mut query: Q, mut f: F) -> DbResult<Result<(), E>>
     where
         Q: Query,
         F: for<'a> FnMut(Q::Item<'a>) -> Result<(), E>,

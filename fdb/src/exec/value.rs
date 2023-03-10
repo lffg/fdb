@@ -2,7 +2,7 @@ use std::{fmt, ops::Add};
 
 use crate::{
     catalog::ty::{PrimitiveTypeId, TypeId},
-    error::DbResult,
+    error::{DbResult, Error},
     util::io::{Serde, SerdeCtx, Size, VarBytes, VarString},
 };
 
@@ -125,6 +125,17 @@ impl Value {
             Value::Array(element_type, _) => TypeId::Array(*element_type),
         }
     }
+
+    impl_value_try_cast!(
+        (try_cast_bool_ref, Bool, bool),
+        (try_cast_byte_ref, Byte, u8),
+        (try_cast_short_int_ref, ShortInt, i16),
+        (try_cast_int_ref, Int, i32),
+        (try_cast_big_int_ref, BigInt, i64),
+        (try_cast_timestamp_ref, Timestamp, i64),
+        (try_cast_text_ref, Text, str),
+        (try_cast_blob_ref, Blob, [u8]),
+    );
 }
 
 impl fmt::Display for Value {
@@ -160,6 +171,23 @@ impl fmt::Debug for Value {
         }
     }
 }
+
+macro_rules! impl_value_try_cast {
+    ($(($name:ident, $variant:ident, $underlying:ty),)*) => {
+        $(
+            /// Tries to cast the [`Value`] to its underlying type.
+            pub fn $name(&self) -> DbResult<&$underlying> {
+                if let Value::$variant(inner) = &self {
+                    Ok(inner)
+                } else {
+                    // TODO: Improve this error message.
+                    Err(Error::ExecError("invalid type cast".into()))
+                }
+            }
+        )*
+    };
+}
+use impl_value_try_cast;
 
 #[cfg(test)]
 mod tests {

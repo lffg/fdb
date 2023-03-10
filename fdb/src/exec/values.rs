@@ -9,6 +9,7 @@ use crate::{
 
 /// An environment that map from column names to database values ([`Value`]).
 #[derive(Debug, Clone)]
+#[cfg_attr(debug_assertions, derive(PartialEq, Eq))]
 pub struct Values {
     inner: HashMap<String, Value>,
 }
