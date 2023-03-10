@@ -20,6 +20,9 @@ pub mod table {
     mod delete;
     pub use delete::*;
 
+    mod update;
+    pub use update::*;
+
     // Private-implementation queries.
 
     mod linear_scan;

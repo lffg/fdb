@@ -22,6 +22,16 @@ impl Values {
         }
     }
 
+    /// Same as [`Self::try_as_schematized`], but taking ownership.
+    pub fn try_into_schematized(
+        mut self,
+        schema: &TableSchema,
+    ) -> DbResult<SchematizedValues<'static>> {
+        let size = SchematizedValues::validate_and_apply_defaults(&mut self, schema)?;
+        // SAFETY: Checked for schema-correctness above.
+        Ok(unsafe { SchematizedValues::try_new_unchecked(Cow::Owned(self), Some(size)) })
+    }
+
     /// Checks if the values already defined in the map met the given schema's
     /// column types requirements.
     ///
@@ -30,11 +40,13 @@ impl Values {
     ///
     /// Returns the schematized values map if all column-typing constraint are
     /// met in the context of the provided [`TableSchema`].
-    pub fn schematize<'a>(
+    pub fn try_as_schematized<'a>(
         &'a mut self,
-        schema: &'a TableSchema,
+        schema: &TableSchema,
     ) -> DbResult<SchematizedValues<'a>> {
-        SchematizedValues::try_new_borrowed(self, schema)
+        let size = SchematizedValues::validate_and_apply_defaults(self, schema)?;
+        // SAFETY: Checked for schema-correctness above.
+        Ok(unsafe { SchematizedValues::try_new_unchecked(Cow::Borrowed(self), Some(size)) })
     }
 
     /// Returns a reference to the underlying value.
@@ -101,7 +113,7 @@ impl SerdeCtx<'_, &TableSchema, &TableSchema> for SchematizedValues<'_> {
             inner.insert(column.name.to_owned(), value);
         }
         // SAFETY: Database assumes that is just stores valid records.
-        Ok(unsafe { Self::try_new_unchecked(Cow::Owned(Values::from(inner))) })
+        Ok(unsafe { Self::try_new_unchecked(Cow::Owned(Values::from(inner)), None) })
     }
 }
 
@@ -118,16 +130,12 @@ impl SchematizedValues<'_> {
         self.values.into_owned()
     }
 
-    /// Tries to construct a new schematized values over a "raw" values map and
-    /// a schema.
+    /// Checks and modifies in place, if needed, that the given [`Values`]
+    /// conforms to the provided [`TableSchema`].
     ///
-    /// `values` is modified in place if it has any null value.
-    fn try_new_borrowed<'a>(
-        values: &'a mut Values,
-        schema: &'a TableSchema,
-    ) -> DbResult<SchematizedValues<'a>> {
+    /// If successful, returns the size of the values, in record-format.
+    fn validate_and_apply_defaults(values: &mut Values, schema: &TableSchema) -> DbResult<u32> {
         let mut size = 0;
-
         for column in &schema.columns {
             let name = &column.name;
             match values.inner.get(name) {
@@ -149,19 +157,20 @@ impl SchematizedValues<'_> {
                 }
             }
         }
-
-        Ok(SchematizedValues {
-            values: Cow::Borrowed(values),
-            size,
-        })
+        Ok(size)
     }
 
     /// Constructs a new [`SchematizedValues`] without checking for types and
     /// nullability of the values.
     ///
     /// # Safety
-    unsafe fn try_new_unchecked(values: Cow<'_, Values>) -> SchematizedValues<'_> {
-        let size = values.inner.values().map(Value::size).sum();
+    ///
+    /// Callers must ensure the given [`Values`] is schematized.
+    unsafe fn try_new_unchecked(
+        values: Cow<'_, Values>,
+        size: Option<u32>,
+    ) -> SchematizedValues<'_> {
+        let size = size.unwrap_or_else(|| values.inner.values().map(Value::size).sum());
         SchematizedValues { values, size }
     }
 }

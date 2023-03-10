@@ -31,7 +31,7 @@ async fn main() -> DbResult<()> {
     loop {
         let table = Object::find(&db, "chess_matches").await?.try_into_table()?;
 
-        println!("Pick a command: `insert`, `select`, `delete` or `quit`.");
+        println!("Pick a command: `insert`, `select`, `delete`, `update` or `quit`.");
         match &*input::<String>("cmd> ") {
             "insert" => {
                 let id: i32 = input("id (int)> ");
@@ -74,6 +74,9 @@ async fn main() -> DbResult<()> {
                 let del = query::table::Delete::new(&table, &pred);
                 db.execute(del, |_| Ok::<_, ()>(())).await?.unwrap();
                 println!("ok");
+            }
+            "update" => {
+                println!("not yet supported via the cli");
             }
             "quit" => break,
             _ => {

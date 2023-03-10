@@ -36,7 +36,7 @@ impl Query for Insert<'_> {
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         let page_id = self.table.page_id;
         let table_schema = &self.table.schema;
-        let schematized_values = self.values.schematize(table_schema)?;
+        let schematized_values = self.values.try_as_schematized(table_schema)?;
 
         debug!(?page_id, "getting page");
         let guard = db.pager().get::<HeapPage>(page_id).await?;

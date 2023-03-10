@@ -165,7 +165,7 @@ impl fmt::Debug for Value {
             Value::Int(inner) => inner.fmt(f),
             Value::BigInt(inner) => inner.fmt(f),
             Value::Timestamp(inner) => inner.fmt(f),
-            Value::Text(_) => f.write_str("<string>"),
+            Value::Text(inner) => inner.fmt(f),
             Value::Blob(_) => f.write_str("<blob>"),
             Value::Array(element_type, _) => write!(f, "<array of {}>", element_type.name()),
         }

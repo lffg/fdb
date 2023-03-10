@@ -98,7 +98,8 @@ where
     ///    a case, the size difference is incremented to `self`'s `pad_count`
     ///    field.
     /// 3. The size of `new_data` is **greater** than the previous one. In such
-    ///    a case, the current record's `is_deleted` field is marked as `true`.
+    ///    a case, no modifications are made in the given record. Callers should
+    ///    also call `set_deleted`, for example.
     ///
     /// In all cases, `self` is mutated in place. For case `3`, `new_data` is
     /// returned in the result's error variant.
@@ -119,10 +120,7 @@ where
                 self.data = new_data;
                 Ok(())
             }
-            Ordering::Greater => {
-                self.is_deleted = true;
-                Err(new_data)
-            }
+            Ordering::Greater => Err(new_data),
         }
     }
 

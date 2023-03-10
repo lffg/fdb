@@ -266,6 +266,7 @@ where
 {
     /// Locks the page for reading. As the underlying lock is a `RwLock`, other
     /// read references may also exist at the same time.
+    #[instrument(level = "trace", skip_all)]
     pub async fn read(&self) -> PagerReadGuard<'_, S> {
         let guard = self.inner.read().await;
         trace!(page_id = ?guard.id(), ty = ?S::ty(), "acquiring read guard");
@@ -279,6 +280,7 @@ where
 
     /// Locks the page for writing. There may be no other references (read or
     /// write) concurrently.
+    #[instrument(level = "trace", skip_all)]
     pub async fn write(&self) -> PagerWriteGuard<'_, S> {
         let guard = self.inner.write().await;
         trace!(page_id = ?guard.id(), ty = ?S::ty(), "acquiring write guard");
