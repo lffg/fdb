@@ -106,6 +106,11 @@ impl SerdeCtx<'_, &TableSchema, &TableSchema> for SchematizedValues<'_> {
 }
 
 impl SchematizedValues<'_> {
+    /// Returns a reference to the underlying [`Values`].
+    pub fn as_values(&self) -> &Values {
+        &self.values
+    }
+
     /// Returns the underlying owned [`Values`].
     ///
     /// This method *may* clone the underlying [`Values`] map.

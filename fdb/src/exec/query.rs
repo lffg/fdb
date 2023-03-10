@@ -17,6 +17,9 @@ pub mod table {
     mod select;
     pub use select::*;
 
+    mod delete;
+    pub use delete::*;
+
     // Private-implementation queries.
 
     mod linear_scan;

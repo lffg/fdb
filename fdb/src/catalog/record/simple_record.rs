@@ -64,6 +64,11 @@ where
         self.is_deleted
     }
 
+    /// Marks the record as being deleted.
+    pub fn set_deleted(&mut self) {
+        self.is_deleted = true;
+    }
+
     /// Returns the record's [`PageId`].
     pub fn page_id(&self) -> PageId {
         self.page_id
@@ -72,6 +77,11 @@ where
     /// Returns the record's offset.
     pub fn offset(&self) -> u16 {
         self.offset
+    }
+
+    /// Returns a reference to the underlying data.
+    pub fn as_data(&'d self) -> &'d D {
+        &self.data
     }
 
     /// Returns the inner record data.

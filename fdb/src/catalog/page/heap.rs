@@ -101,6 +101,19 @@ impl HeapPage {
         Ok(r)
     }
 
+    /// Writes at the given position.
+    ///
+    /// Changes the underlying data. NOTE THAT THIS METHOD DOESN'T ALTER THE
+    /// UNDERLYING `free_offset` MARKER AND THE UNDERLYING RECORD COUNTER.
+    pub fn write_at<F, R>(&mut self, offset: u16, f: F) -> DbResult<R>
+    where
+        F: for<'a> FnOnce(&mut buff::Buff<'a>) -> DbResult<R>,
+    {
+        let mut buf = buff::Buff::new(&mut self.bytes[offset as usize..]);
+        let r = f(&mut buf)?;
+        Ok(r)
+    }
+
     /// Reads at the given offset.
     pub fn read_at<F, R>(&self, offset: u16, f: F) -> DbResult<R>
     where

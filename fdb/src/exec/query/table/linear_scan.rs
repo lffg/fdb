@@ -90,6 +90,8 @@ impl<'s> LinearScan<'s> {
         match &mut self.state {
             Some(state) => Ok((ctx.pager.get::<HeapPage>(state.page_id).await?, state)),
             state @ None => {
+                // TODO: Move this to upper level so that it doesn't get
+                // repeated in, e.g., Delete implementation.
                 trace!("fetching table schema");
                 let table_object = Object::find(ctx, self.table_name).await?;
                 let first_page_id = table_object.page_id;

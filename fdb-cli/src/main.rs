@@ -29,7 +29,7 @@ async fn main() -> DbResult<()> {
     }
 
     loop {
-        println!("Pick a command: `insert`, `select` or `quit`.");
+        println!("Pick a command: `insert`, `select`, `delete` or `quit`.");
         match &*input::<String>("cmd> ") {
             "insert" => {
                 let id: i32 = input("id (int)> ");
@@ -64,6 +64,14 @@ async fn main() -> DbResult<()> {
                 .await?
                 .unwrap();
                 println!("{}", "-".repeat(50));
+            }
+            "delete" => {
+                let id: i32 = input("id (int)> ");
+                let pred =
+                    move |val: &Values| *val.get("id").unwrap().try_cast_int_ref().unwrap() == id;
+                let del = query::table::Delete::new("chess_matches", &pred);
+                db.execute(del, |_| Ok::<_, ()>(())).await?.unwrap();
+                println!("ok");
             }
             "quit" => break,
             _ => {
