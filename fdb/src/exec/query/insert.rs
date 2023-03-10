@@ -51,7 +51,7 @@ impl Executor for Insert<'_> {
 
         seq_header.record_count += 1;
 
-        let serde_ctx = simple_record::Ctx {
+        let serde_ctx = simple_record::TableRecordCtx {
             schema: &table_schema,
             offset: seq_first_p.header.free_offset,
         };

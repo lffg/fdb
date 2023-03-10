@@ -96,7 +96,7 @@ impl Executor for Select<'_> {
 
         page.release();
 
-        let serde_ctx = simple_record::Ctx {
+        let serde_ctx = simple_record::TableRecordCtx {
             schema: &table_schema,
             offset: state.offset,
         };

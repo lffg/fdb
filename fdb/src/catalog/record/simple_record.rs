@@ -8,7 +8,7 @@ use std::{
 use crate::{
     catalog::table_schema::TableSchema,
     error::DbResult,
-    util::io::{SerdeCtx, Size},
+    util::io::{Serde, SerdeCtx, Size},
 };
 
 /// A simple database record. May store arbitrary bytes which are to be
@@ -21,7 +21,7 @@ where
     ///
     /// This value is not serialized.
     offset: u16,
-    /// The current record's size, which may be dirty.
+    /// The record's total size.
     total_size: u16,
     /// Whether the record is logically deleted.
     is_deleted: bool,
@@ -35,16 +35,6 @@ where
     /// size), the in-memory record representation doesn't need the padding.
     /// Hence, one just stores the padding section's size here.
     pad_size: u16,
-}
-
-pub struct Ctx<'a> {
-    /// The table schema associated with the record.
-    pub schema: &'a TableSchema,
-    /// The starting offset of the record.
-    ///
-    /// Notice that this *may* not be the *actual* page offset. It *may* be an
-    /// "opaque offset".
-    pub offset: u16,
 }
 
 impl<'d, D> SimpleRecord<'d, D>
@@ -95,17 +85,17 @@ where
     ///
     /// Notice that updates don't change the current record's `total_size`.
     pub fn try_update(&mut self, new_data: Cow<'d, D>) -> Result<(), Cow<'d, D>> {
-        let prev_total_size = self.data.size() as u16;
-        let new_size = new_data.size() as u16;
+        let total_size = self.available_data_size();
+        let new_size = new_data.size();
 
-        match new_size.cmp(&prev_total_size) {
+        match new_size.cmp(&total_size) {
             Ordering::Less => {
-                let diff = prev_total_size - new_size;
+                self.pad_size += (total_size - new_size) as u16;
                 self.data = new_data;
-                self.pad_size += diff;
                 Ok(())
             }
             Ordering::Equal => {
+                self.pad_size = 0;
                 self.data = new_data;
                 Ok(())
             }
@@ -114,6 +104,11 @@ where
                 Err(new_data)
             }
         }
+    }
+
+    /// Returns the available size for the `data` section.
+    fn available_data_size(&self) -> u32 {
+        self.size() - 2 - 1
     }
 }
 
@@ -129,11 +124,12 @@ where
     }
 }
 
-impl<D> SerdeCtx<'_, Ctx<'_>, Ctx<'_>> for SimpleRecord<'_, D>
+/// Serde implementation for table's data records.
+impl<D> SerdeCtx<'_, TableRecordCtx<'_>, TableRecordCtx<'_>> for SimpleRecord<'_, D>
 where
     D: for<'a, 'ser, 'de> SerdeCtx<'a, &'ser TableSchema, &'de TableSchema> + Clone,
 {
-    fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: Ctx<'_>) -> DbResult<()> {
+    fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: TableRecordCtx<'_>) -> DbResult<()> {
         buf.write(self.total_size);
         buf.write(self.is_deleted);
         self.data.serialize(buf, ctx.schema)?;
@@ -141,7 +137,7 @@ where
         Ok(())
     }
 
-    fn deserialize(buf: &mut buff::Buff<'_>, ctx: Ctx<'_>) -> DbResult<Self>
+    fn deserialize(buf: &mut buff::Buff<'_>, ctx: TableRecordCtx<'_>) -> DbResult<Self>
     where
         Self: Sized,
     {
@@ -169,6 +165,64 @@ where
             pad_size,
         })
     }
+}
+
+/// Serde implementation for general [`Serde`] types.
+impl<D> SerdeCtx<'_, (), OffsetCtx> for SimpleRecord<'_, D>
+where
+    D: for<'a> Serde<'a> + Clone,
+{
+    fn serialize(&self, buf: &mut buff::Buff<'_>, _ctx: ()) -> DbResult<()> {
+        buf.write(self.total_size);
+        buf.write(self.is_deleted);
+        self.data.serialize(buf)?;
+        buf.write_bytes(self.pad_size as usize, 0);
+        Ok(())
+    }
+
+    fn deserialize(buf: &mut buff::Buff<'_>, ctx: OffsetCtx) -> DbResult<Self>
+    where
+        Self: Sized,
+    {
+        let total_size: u16 = buf.read();
+        let is_deleted: bool = buf.read();
+        let data = D::deserialize(buf)?;
+
+        let pad_size = total_size - 2 - 1 - data.size() as u16;
+
+        if cfg!(debug_assertions) {
+            // Ensure one is reading zeroes in debug mode.
+            for _ in 0..pad_size {
+                let byte: u8 = buf.read();
+                debug_assert_eq!(byte, 0);
+            }
+        } else {
+            buf.seek_advance(pad_size as usize);
+        }
+
+        Ok(SimpleRecord {
+            offset: ctx.offset,
+            total_size,
+            is_deleted,
+            data: Cow::Owned(data),
+            pad_size,
+        })
+    }
+}
+
+pub struct OffsetCtx {
+    /// The starting offset of the record.
+    ///
+    /// Notice that this *may* not be the *actual* page offset. It *may* be an
+    /// "opaque offset".
+    pub offset: u16,
+}
+
+pub struct TableRecordCtx<'a> {
+    /// The table schema associated with the record.
+    pub schema: &'a TableSchema,
+    /// The starting offset of the record. For more info, see [`OffsetCtx`].
+    pub offset: u16,
 }
 
 impl<D> Debug for SimpleRecord<'_, D>
