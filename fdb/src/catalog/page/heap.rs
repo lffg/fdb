@@ -1,6 +1,6 @@
 //! Heap pages store records in an unordered and sequential fashion.
 
-use tracing::error;
+use tracing::{error, trace};
 
 use crate::{
     catalog::page::{Page, PageId, PageType, SpecificPage},
@@ -93,6 +93,7 @@ impl HeapPage {
     where
         F: for<'a> FnOnce(&mut buff::Buff<'a>) -> DbResult<R>,
     {
+        trace!(page_id = ?self.id(), "writing to buffer");
         let mut buf = buff::Buff::new(&mut self.bytes[self.header.free_offset as usize..]);
         let start = buf.offset();
         let r = f(&mut buf)?;
@@ -109,6 +110,7 @@ impl HeapPage {
     where
         F: for<'a> FnOnce(&mut buff::Buff<'a>) -> DbResult<R>,
     {
+        trace!(page_id = ?self.id(), "writing to buffer");
         let mut buf = buff::Buff::new(&mut self.bytes[offset as usize..]);
         let r = f(&mut buf)?;
         Ok(r)
@@ -119,6 +121,7 @@ impl HeapPage {
     where
         F: for<'a> FnOnce(&mut buff::Buff<'a>) -> DbResult<R>,
     {
+        trace!(page_id = ?self.id(), "reading from buffer");
         // TODO: HACK: One must be able to create a buf from a shared slice.
         // TODO(buff-trait): Fix.
         let mut cloned_buf = self.bytes[offset as usize..].to_owned();

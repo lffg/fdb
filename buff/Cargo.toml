@@ -2,3 +2,6 @@
 name = "buff"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+tracing.workspace = true

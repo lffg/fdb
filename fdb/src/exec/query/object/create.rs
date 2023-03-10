@@ -88,7 +88,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
     // new page.
     debug!("allocating new page to insert");
     let new_page_guard = pager.alloc::<HeapPage>().await?;
-    let new_page = new_page_guard.write().await;
+    let mut new_page = new_page_guard.write().await;
     let new_page_id = new_page.id();
 
     // Sanity check.
@@ -101,8 +101,8 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
         )));
     }
 
-    page.write(|buf| record.serialize(buf, ()))?;
-    page.header.record_count += 1;
+    new_page.write(|buf| record.serialize(buf, ()))?;
+    new_page.header.record_count += 1;
 
     new_page.flush();
 

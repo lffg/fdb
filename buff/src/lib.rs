@@ -1,5 +1,7 @@
 use std::fmt;
 
+use tracing::error;
+
 mod impls;
 
 /// Represents a type that may be serialized to bytes and deserialized from
@@ -149,6 +151,7 @@ impl Buff<'_> {
         let lo = self.offset;
         let hi = lo + count;
         if hi > self.capacity() {
+            error!(buff = ?self, "not enough capacity for {count} more bytes");
             panic!("not enough capacity for {count} more bytes");
         }
         self.offset = hi;
