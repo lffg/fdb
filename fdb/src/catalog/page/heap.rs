@@ -4,7 +4,6 @@ use tracing::{error, trace};
 
 use crate::{
     catalog::page::{Page, PageId, PageType, SpecificPage},
-    config::PAGE_SIZE,
     error::{DbResult, Error},
     util::io::{Serde, Size},
 };
@@ -123,7 +122,7 @@ impl HeapPage {
     }
 
     /// Constructs the first page of a heap page sequence.
-    pub fn new_seq_first(page_id: PageId) -> Self {
+    pub fn new_seq_first(page_size: u16, page_id: PageId) -> Self {
         let header = Header {
             id: page_id,
             seq_header: Some(SeqHeader {
@@ -135,13 +134,13 @@ impl HeapPage {
             record_count: 0,
             free_offset: 0,
         };
-        let bytes = vec![0; PAGE_SIZE as usize - header.size() as usize];
+        let bytes = vec![0; page_size as usize - header.size() as usize];
 
         Self { header, bytes }
     }
 
     /// Constructs a heap page sequence node (i.e., not the first).
-    pub fn new_seq_node(page_id: PageId) -> Self {
+    pub fn new_seq_node(page_size: u16, page_id: PageId) -> Self {
         let header = Header {
             id: page_id,
             seq_header: None,
@@ -149,7 +148,7 @@ impl HeapPage {
             record_count: 0,
             free_offset: 0,
         };
-        let bytes = vec![0; PAGE_SIZE as usize - header.size() as usize];
+        let bytes = vec![0; page_size as usize - header.size() as usize];
 
         Self { header, bytes }
     }

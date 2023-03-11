@@ -17,7 +17,13 @@ impl Db {
     ///
     /// On first access, `true` is returned as the second tuple element.
     pub async fn open(path: &Path) -> DbResult<(Self, bool)> {
-        let disk_manager = DiskManager::new(Path::new(path)).await?;
+        const DEFAULT_PAGE_SIZE: u16 = 4 * 1024;
+        Self::open_with_page_size(path, DEFAULT_PAGE_SIZE).await
+    }
+
+    /// Same as [`Db::open`], but allows for setting a different page size.
+    pub async fn open_with_page_size(path: &Path, page_size: u16) -> DbResult<(Self, bool)> {
+        let disk_manager = DiskManager::new(Path::new(path), page_size).await?;
         let mut pager = Pager::new(disk_manager);
 
         let is_new = bootstrap::boot_first_page(&mut pager).await?;
@@ -45,5 +51,10 @@ impl Db {
     /// a SQL interface.
     pub fn pager(&self) -> &Pager {
         &self.pager
+    }
+
+    /// Returns the database's page size.
+    pub fn page_size(&self) -> u16 {
+        self.pager.page_size()
     }
 }

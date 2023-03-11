@@ -23,10 +23,7 @@ pub struct FirstPage {
 
 impl Size for FirstPage {
     fn size(&self) -> u32 {
-        // One doesn't need to contabilize the type byte here, since the
-        // database utilizes the `'f' as u8` code point as the first page's type
-        // tag.
-        self.header.size()
+        self.header.page_size as u32
     }
 }
 
@@ -57,10 +54,11 @@ impl SpecificPage for FirstPage {
 }
 
 impl FirstPage {
-    pub fn new() -> Self {
+    pub fn new(page_size: u16) -> Self {
         FirstPage {
             header: MainHeader {
                 file_format_version: 1,
+                page_size,
                 page_count: 1,
                 first_free_list_page_id: None,
                 first_schema_seq_page_id: PageId::new_u32(2),
@@ -69,17 +67,13 @@ impl FirstPage {
     }
 }
 
-impl Default for FirstPage {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// The database header.
 #[derive(Debug)]
 pub struct MainHeader {
     /// The file format version. Currently, such a version is defined as `0`.
     pub file_format_version: u8,
+    /// The size of the database pages.
+    pub page_size: u16,
     /// The total number of pages being used in the file.
     pub page_count: u32,
     /// The ID of the first free list page.
@@ -99,6 +93,7 @@ impl Serde<'_> for MainHeader {
         buf.scoped_exact(HEADER_SIZE, |buf| {
             buf.write_slice(b"fdb format");
             buf.write(self.file_format_version);
+            buf.write(self.page_size);
             buf.write(self.page_count);
             self.first_free_list_page_id.serialize(buf)?;
             self.first_schema_seq_page_id.serialize(buf)?;
@@ -123,6 +118,7 @@ impl Serde<'_> for MainHeader {
 
             let header = MainHeader {
                 file_format_version: buf.read(),
+                page_size: buf.read(),
                 page_count: buf.read(),
                 first_free_list_page_id: Option::<PageId>::deserialize(buf)?,
                 first_schema_seq_page_id: PageId::deserialize(buf)?,

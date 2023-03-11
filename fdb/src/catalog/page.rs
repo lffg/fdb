@@ -6,7 +6,6 @@ use std::{
 use tracing::error;
 
 use crate::{
-    config::PAGE_SIZE,
     error::{DbResult, Error},
     util::io::{Serde, Size},
 };
@@ -75,7 +74,10 @@ impl Page {
 
 impl Size for Page {
     fn size(&self) -> u32 {
-        PAGE_SIZE as u32
+        match self {
+            Page::First(inner) => inner.size(),
+            Page::Heap(inner) => inner.size(),
+        }
     }
 }
 
@@ -187,8 +189,8 @@ impl PageId {
 
     /// Returns the 0-based page offset, commonly used in disk seek operations.
     #[inline]
-    pub const fn offset(self) -> u64 {
-        (self.0.get() as u64 - 1) * PAGE_SIZE
+    pub const fn offset(self, page_size: u16) -> u64 {
+        (self.0.get() as u64 - 1) * page_size as u64
     }
 }
 

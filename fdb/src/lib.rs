@@ -1,7 +1,6 @@
 mod db;
 pub use db::Db;
 
-pub mod config;
 pub mod error;
 
 pub mod catalog {

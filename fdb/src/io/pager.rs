@@ -14,7 +14,6 @@ use tracing::{debug, info, instrument, trace};
 
 use crate::{
     catalog::page::{FirstPage, Page, PageId, SpecificPage},
-    config::PAGE_SIZE,
     error::{DbResult, Error},
     io::{cache::Cache, disk_manager::DiskManager},
     util::io::Serde,
@@ -27,6 +26,8 @@ type PageNotificationSender = mpsc::UnboundedSender<PageNotification>;
 type PageNotificationReceiver = mpsc::UnboundedReceiver<PageNotification>;
 
 pub struct Pager {
+    /// The page size.
+    page_size: u16,
     /// The underlying disk manager.
     disk_manager: Mutex<DiskManager>,
     /// The page cache to help avoid doing unnecessary disk accesses.
@@ -45,16 +46,24 @@ pub struct Pager {
 impl Pager {
     /// Constructs a new pager.
     pub fn new(disk_manager: DiskManager) -> Pager {
+        let page_size = disk_manager.page_size();
+
         let (page_status_tx, rx) = mpsc::unbounded_channel::<PageNotification>();
         let page_status_rx = Mutex::new(rx);
         let disk_manager = Mutex::new(disk_manager);
 
         Pager {
+            page_size,
             cache: Cache::new(8192, RandomState::default()),
             disk_manager,
             page_status_tx,
             page_status_rx,
         }
+    }
+
+    /// Returns the database's page size.
+    pub fn page_size(&self) -> u16 {
+        self.page_size
     }
 
     /// Returns a [`PagerGuard`] for the given page ID. This guard may be used
@@ -81,7 +90,7 @@ impl Pager {
     #[instrument(level = "debug", skip_all)]
     pub async fn flush_all(&self) -> DbResult<()> {
         // TODO: Use a buffer pool.
-        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = vec![0; self.page_size as usize];
 
         let mut rx = self.page_status_rx.lock().await;
         let mut flush_count = 0;
@@ -140,7 +149,7 @@ impl Pager {
     pub async fn alloc<S, F>(&self, create: F) -> DbResult<PagerGuard<S>>
     where
         S: SpecificPage,
-        F: FnOnce(PageId) -> S,
+        F: FnOnce(u16, PageId) -> S,
     {
         debug!(ty = ?S::ty(), "allocating page");
 
@@ -150,9 +159,9 @@ impl Pager {
         first_page.header.page_count += 1;
 
         let page_id = PageId::new_u32(first_page.header.page_count);
-        let init = create(page_id);
+        let init = create(self.page_size, page_id);
 
-        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = vec![0; self.page_size as usize];
         self.flush_page(&mut *buf, &init).await?;
 
         debug!("flushing first page metadata...");
@@ -211,7 +220,7 @@ impl Pager {
     where
         S: SpecificPage,
     {
-        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = vec![0; self.page_size as usize];
         self.flush_page(&mut *buf, &page).await?;
 
         let id = page.id();
@@ -238,7 +247,7 @@ impl Pager {
     /// Loads the page from the disk.
     async fn disk_read_page(&self, page_id: PageId) -> DbResult<Page> {
         // TODO: Use a buffer pool.
-        let mut buf = Box::new([0; PAGE_SIZE as usize]);
+        let mut buf = vec![0; self.page_size as usize];
         let mut buf = Buff::new(&mut *buf);
 
         {

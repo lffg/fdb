@@ -12,12 +12,23 @@ use crate::{
 /// for the first time.
 #[instrument(level = "debug", skip_all)]
 pub async fn boot_first_page(pager: &mut Pager) -> DbResult<bool> {
+    let page_size = pager.page_size();
+
     match pager.get::<FirstPage>(PageId::FIRST).await {
-        Ok(_) => Ok(false),
+        Ok(guard) => {
+            let actual_page_size = guard.read().await.header.page_size;
+            if actual_page_size != page_size {
+                Err(Error::ExecError(format!(
+                    "file page size is {actual_page_size}; expected {page_size}"
+                )))
+            } else {
+                Ok(false)
+            }
+        }
         Err(Error::PageOutOfBounds(_)) => {
             debug!("first access; booting first page");
 
-            let first_page = FirstPage::new();
+            let first_page = FirstPage::new(page_size);
 
             // SAFETY: This is the first page, no metadata is needed, yet.
             unsafe {
