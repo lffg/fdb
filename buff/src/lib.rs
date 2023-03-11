@@ -68,6 +68,11 @@ impl<'a> Buff<'a> {
         self.offset += delta;
     }
 
+    /// Checks if the buffer can accommodate `n` more bytes.
+    pub fn can_accommodate(&self, n: usize) -> bool {
+        self.offset() + n <= self.capacity()
+    }
+
     /// Reads the type represented by [`AsBytes`].
     pub fn read<const S: usize, T>(&mut self) -> T
     where
@@ -270,6 +275,23 @@ mod tests {
         buf.pad_end_bytes(0);
 
         assert_eq!(buf.get(), b"\xAB\xCD\x00\x00\x00");
+    }
+
+    #[test]
+    fn test_can_accommodate() {
+        let mut orig_buf = [1, 2, 3, 4];
+        let mut buf = Buff::new(&mut orig_buf);
+
+        assert!(buf.can_accommodate(3));
+        buf.seek_advance(3);
+
+        assert!(!buf.can_accommodate(3));
+        assert!(!buf.can_accommodate(2));
+        assert!(buf.can_accommodate(1));
+        buf.seek_advance(1);
+
+        assert!(!buf.can_accommodate(1));
+        assert!(buf.can_accommodate(0));
     }
 
     #[test]
