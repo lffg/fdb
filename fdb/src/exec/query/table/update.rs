@@ -20,7 +20,7 @@ pub type Pred = dyn Sync + for<'v> Fn(&'v Values) -> bool;
 /// The updater function.
 pub type Updater = dyn Sync + for<'v> Fn(&'v mut Values);
 
-/// A delete query.
+/// An update query.
 pub struct Update<'a> {
     table: &'a TableObject,
     linear_scan: LinearScan<'a>,
@@ -30,10 +30,10 @@ pub struct Update<'a> {
 
 #[async_trait]
 impl Query for Update<'_> {
-    // TODO: Add `deleted_count`.
+    // TODO: Add `updated_count`.
     type Item<'a> = ();
 
-    #[instrument(name = "TableDelete", level = "debug", skip_all)]
+    #[instrument(name = "TableUpdate", level = "debug", skip_all)]
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
             let out = if let Some(mut record) = self.linear_scan.next(db).await? {
