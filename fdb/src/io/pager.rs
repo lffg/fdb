@@ -104,7 +104,7 @@ impl Pager {
             let page_arc = self.cache.get(&page_id).await.expect("page must exist");
 
             if ref_type == PageRefType::Write {
-                let mut buf = Buff::new(&mut *buf);
+                let mut buf = Buff::new(&mut buf);
 
                 {
                     // In write reads, this lock should not have any contention.
@@ -162,7 +162,7 @@ impl Pager {
         let init = create(self.page_size, page_id);
 
         let mut buf = vec![0; self.page_size as usize];
-        self.flush_page(&mut *buf, &init).await?;
+        self.flush_page(&mut buf, &init).await?;
 
         debug!("flushing first page metadata...");
         first_page.flush();
@@ -221,7 +221,7 @@ impl Pager {
         S: SpecificPage,
     {
         let mut buf = vec![0; self.page_size as usize];
-        self.flush_page(&mut *buf, &page).await?;
+        self.flush_page(&mut buf, &page).await?;
 
         let id = page.id();
         let inner = Arc::new(RwLock::new(page.into_page()));
@@ -248,7 +248,7 @@ impl Pager {
     async fn disk_read_page(&self, page_id: PageId) -> DbResult<Page> {
         // TODO: Use a buffer pool.
         let mut buf = vec![0; self.page_size as usize];
-        let mut buf = Buff::new(&mut *buf);
+        let mut buf = Buff::new(&mut buf);
 
         {
             let mut dm = self.disk_manager.lock().await;

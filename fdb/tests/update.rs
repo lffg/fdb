@@ -10,7 +10,7 @@ mod test_utils;
 
 #[tokio::test]
 async fn test_update_smaller() -> DbResult<()> {
-    let db = test_utils::TestDb::new_temp().await?;
+    let db = test_utils::TestDb::new_temp(None).await?;
     let table = Object::find(&db, "test_table").await?.try_into_table()?;
 
     let values = &mut [
@@ -48,7 +48,7 @@ async fn test_update_smaller() -> DbResult<()> {
     {
         values[1].set("text".into(), Value::Text("olá!".into()));
         let mut expected_rows: HashMap<_, _> = values
-            .into_iter()
+            .iter_mut()
             .map(|value| (*value.get("id").unwrap().try_cast_int_ref().unwrap(), value))
             .collect();
         let second_select = query::table::Select::new(&table);
@@ -69,7 +69,7 @@ async fn test_update_smaller() -> DbResult<()> {
 
 #[tokio::test]
 async fn test_update_bigger() -> DbResult<()> {
-    let db = test_utils::TestDb::new_temp().await?;
+    let db = test_utils::TestDb::new_temp(None).await?;
     let table = Object::find(&db, "test_table").await?.try_into_table()?;
 
     let values = &mut [
@@ -109,7 +109,7 @@ async fn test_update_bigger() -> DbResult<()> {
     {
         values[1].set("text".into(), Value::Text(NEW_TEXT.into()));
         let mut expected_rows: HashMap<_, _> = values
-            .into_iter()
+            .iter_mut()
             .map(|value| (*value.get("id").unwrap().try_cast_int_ref().unwrap(), value))
             .collect();
         let second_select = query::table::Select::new(&table);

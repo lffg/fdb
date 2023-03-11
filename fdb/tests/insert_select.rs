@@ -12,7 +12,7 @@ mod test_utils;
 async fn test_insert_select() -> DbResult<()> {
     // test_utils::setup_tracing(Some("debug"));
 
-    let db = test_utils::TestDb::new_temp().await?;
+    let db = test_utils::TestDb::new_temp(Some(128)).await?;
     let table = Object::find(&db, "test_table").await?.try_into_table()?;
 
     {
@@ -24,28 +24,15 @@ async fn test_insert_select() -> DbResult<()> {
         .unwrap();
     }
 
-    let values = &[
-        Values::from(HashMap::from([
-            ("id".into(), Value::Int(1)),
-            ("text".into(), Value::Text("hello, world!".into())),
-            ("bool".into(), Value::Bool(true)),
-        ])),
-        Values::from(HashMap::from([
-            ("id".into(), Value::Int(2)),
-            ("text".into(), Value::Text("olá, mundo!".into())),
-            ("bool".into(), Value::Bool(false)),
-        ])),
-        Values::from(HashMap::from([
-            ("id".into(), Value::Int(3)),
-            ("text".into(), Value::Text("a".to_string().repeat(3000))),
-            ("bool".into(), Value::Bool(true)),
-        ])),
-        Values::from(HashMap::from([
-            ("id".into(), Value::Int(4)),
-            ("text".into(), Value::Text("b".to_string().repeat(3000))),
-            ("bool".into(), Value::Bool(true)),
-        ])),
-    ];
+    let values: Vec<_> = (0..64)
+        .map(|i| {
+            Values::from(HashMap::from([
+                ("id".into(), Value::Int(i + 1)),
+                ("text".into(), Value::Text(format!("{:0>8}", i + 1))),
+                ("bool".into(), Value::Bool(true)),
+            ]))
+        })
+        .collect();
 
     {
         for value in values.iter() {
@@ -61,6 +48,7 @@ async fn test_insert_select() -> DbResult<()> {
             .collect();
         let second_select = query::table::Select::new(&table);
         db.execute(second_select, |row| {
+            dbg!(&row);
             let expected = expected_rows
                 .remove(row.get("id").unwrap().try_cast_int_ref().unwrap())
                 .unwrap();

@@ -10,7 +10,7 @@ mod test_utils;
 
 #[tokio::test]
 async fn test_delete() -> DbResult<()> {
-    let db = test_utils::TestDb::new_temp().await?;
+    let db = test_utils::TestDb::new_temp(None).await?;
     let table = Object::find(&db, "test_table").await?.try_into_table()?;
 
     let values = &[

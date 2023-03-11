@@ -43,10 +43,11 @@ pub struct TestDb(Db, PathBuf);
 
 impl TestDb {
     /// Creates a new test database in a temporary file.
-    pub async fn new_temp() -> DbResult<Self> {
+    pub async fn new_temp(page_size: Option<u16>) -> DbResult<Self> {
         let path = test_path().await;
+        let page_size = page_size.unwrap_or(1024);
 
-        let (db, is_new) = Db::open(&path).await?;
+        let (db, is_new) = Db::open_with_page_size(&path, page_size).await?;
         assert!(is_new, "db file must be new");
         define_test_catalog(&db).await?;
 
