@@ -59,8 +59,8 @@ impl Query for Insert<'_> {
         };
 
         seq_h!(mut page).record_count += 1;
+
         if let Some(last_page_id) = maybe_new_last_page_id {
-            page.header.next_page_id = Some(last_page_id);
             seq_h!(mut page).last_page_id = last_page_id;
             seq_h!(mut page).page_count += 1;
         }
@@ -120,6 +120,9 @@ async fn write(
 
     new_page.write(|buf| record.serialize(buf, serde_ctx))?;
     new_page.header.record_count += 1;
+
+    // Links the new page.
+    page.header.next_page_id = Some(new_page_id);
 
     new_page.flush();
 
