@@ -76,7 +76,24 @@ async fn main() -> DbResult<()> {
                 println!("ok");
             }
             "update" => {
-                println!("not yet supported via the cli");
+                println!("update by id...");
+                let id: i32 = input("id (int)> ");
+                println!("new values...");
+                let new_id: i32 = input("id (int)> ");
+                let new_name: String = input("name (text)> ");
+                let new_age: i32 = input("age (int)> ");
+
+                let pred =
+                    move |val: &Values| *val.get("id").unwrap().try_cast_int_ref().unwrap() == id;
+                let updater = {
+                    move |val: &mut Values| {
+                        val.set("id".into(), Value::Int(new_id));
+                        val.set("name".into(), Value::Text(new_name.clone()));
+                        val.set("age".into(), Value::Int(new_age));
+                    }
+                };
+                let del = query::table::Update::new(&table, &pred, &updater);
+                db.execute(del, |_| Ok::<_, ()>(())).await?.unwrap();
             }
             "quit" => break,
             _ => {
