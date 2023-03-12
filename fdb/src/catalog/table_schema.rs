@@ -14,6 +14,17 @@ pub struct TableSchema {
     pub columns: Vec<Column>,
 }
 
+impl TableSchema {
+    /// Checks if the schema contains the given column, returning a reference to
+    /// it.
+    ///
+    /// This is a linear operation which, in the worst case, scans over all of
+    /// the `schema` columns.
+    pub fn column(&self, name: &str) -> Option<&Column> {
+        self.columns.iter().find(|col| col.name == name)
+    }
+}
+
 impl Size for TableSchema {
     fn size(&self) -> u32 {
         VarList::from(self.columns.as_slice()).size()

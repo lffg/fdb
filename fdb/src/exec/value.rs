@@ -1,4 +1,4 @@
-use std::{fmt, ops::Add};
+use std::{cmp::Ordering, fmt, ops::Add};
 
 use crate::{
     catalog::ty::{PrimitiveTypeId, TypeId},
@@ -136,6 +136,32 @@ impl Value {
         (try_cast_text_ref, Text, str),
         (try_cast_blob_ref, Blob, [u8]),
     );
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self, &other) {
+            (Value::Bool(a), Value::Bool(b)) => a.cmp(b),
+            (Value::Byte(a), Value::Byte(b)) => a.cmp(b),
+            (Value::Int(a), Value::Int(b)) => a.cmp(b),
+            (Value::BigInt(a), Value::BigInt(b)) => a.cmp(b),
+            (Value::Timestamp(a), Value::Timestamp(b)) => a.cmp(b),
+            (Value::Text(a), Value::Text(b)) => a.cmp(b),
+            (Value::Blob(a), Value::Blob(b)) => a.cmp(b),
+            (Value::Array(_, a), Value::Array(_, b)) => a.cmp(b),
+            (a, b) => panic!(
+                "bug: fdb doesn't support comparing values of different types (`{}` and `{}`)",
+                a.type_id().name(),
+                b.type_id().name()
+            ),
+        }
+    }
 }
 
 impl fmt::Display for Value {

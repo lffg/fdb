@@ -23,6 +23,9 @@ pub mod table {
     mod update;
     pub use update::*;
 
+    mod sort;
+    pub use sort::*;
+
     // Private-implementation queries.
 
     mod linear_scan;

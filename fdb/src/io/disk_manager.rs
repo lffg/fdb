@@ -1,6 +1,6 @@
 use std::{
     io::{self, SeekFrom},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use tokio::{
@@ -16,6 +16,7 @@ use crate::{
 
 pub struct DiskManager {
     file: File,
+    path: PathBuf,
     page_size: u16,
 }
 
@@ -31,7 +32,20 @@ impl DiskManager {
             .open(path)
             .await?;
 
-        Ok(DiskManager { file, page_size })
+        Ok(DiskManager {
+            file,
+            page_size,
+            path: path.to_owned(),
+        })
+    }
+
+    /// Constructs a disk manager from the given file.
+    pub fn from_file(path: PathBuf, file: File, page_size: u16) -> Self {
+        DiskManager {
+            file,
+            page_size,
+            path,
+        }
     }
 
     /// Reads the contents of the page at the offset from the given page id,
@@ -41,7 +55,7 @@ impl DiskManager {
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
     pub async fn read_page(&mut self, page_id: PageId, buf: &mut [u8]) -> DbResult<()> {
-        info!(?page_id, "reading page from disk");
+        info!(?page_id, path = ?self.path, "reading page from disk");
         assert_eq!(buf.len(), self.page_size as usize);
 
         let size = self.file.metadata().await?.len();
@@ -72,7 +86,7 @@ impl DiskManager {
     ///
     /// - If `buf`'s length is different than [`PAGE_SIZE`].
     pub async fn write_page(&mut self, page_id: PageId, buf: &[u8]) -> DbResult<()> {
-        info!(?page_id, "writing page to disk");
+        info!(?page_id, path = ?self.path, "writing page to disk");
         assert_eq!(buf.len(), self.page_size as usize);
 
         self.file
@@ -87,5 +101,10 @@ impl DiskManager {
     /// Returns the database's page size.
     pub fn page_size(&self) -> u16 {
         self.page_size
+    }
+
+    /// Returns the underlying path.
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 }
