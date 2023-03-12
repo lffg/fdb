@@ -81,7 +81,11 @@ impl From<HashMap<String, Value>> for Values {
 /// schema.
 #[derive(Debug, Clone)]
 pub struct SchematizedValues<'a> {
+    /// Row values.
     values: Cow<'a, Values>,
+    /// Total size for this row.
+    ///
+    /// This value is not serialized by [`SchematizedValues`].
     size: u32,
 }
 
