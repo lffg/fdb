@@ -4,6 +4,25 @@
 
 Tiny database for a school project.
 
+## How to run?
+
+Download the Rust Language toolchain at
+<https://www.rust-lang.org/tools/install>.
+
+Clone the repository and run:
+
+```
+cargo run
+```
+
+If one wants to see logs:
+
+```
+RUST_LOG=<level> cargo run
+```
+
+Where `<level>` can be `trace`, `debug`, `info`, `warn` or `error`.
+
 ## Dataset for tests
 
 Though this database supports arbitrary user-defined schemas, while being
