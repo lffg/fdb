@@ -31,6 +31,10 @@ pub mod exec {
 
     pub mod object;
     pub mod query;
+
+    pub mod util {
+        pub mod macros;
+    }
 }
 
 pub mod util {

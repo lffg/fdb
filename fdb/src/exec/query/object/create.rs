@@ -10,7 +10,7 @@ use crate::{
         record::simple_record::{self, SimpleRecord},
     },
     error::{DbResult, Error},
-    exec::query::{seq_h, Query},
+    exec::{query::Query, util::macros::seq_h},
     io::pager::Pager,
     util::io::{SerdeCtx, Size},
     Db,

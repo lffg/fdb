@@ -8,10 +8,7 @@ use crate::{
         record::simple_record::{self, SimpleRecord},
     },
     error::DbResult,
-    exec::{
-        query::{seq_h, Query},
-        values::SchematizedValues,
-    },
+    exec::{query::Query, util::macros::seq_h, values::SchematizedValues},
     io::pager::PagerGuard,
     util::io::{SerdeCtx, Size},
     Db,

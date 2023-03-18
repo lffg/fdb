@@ -12,7 +12,8 @@ use crate::{
     },
     error::{DbResult, Error},
     exec::{
-        query::{seq_h, Query},
+        query::Query,
+        util::macros::seq_h,
         values::{SchematizedValues, Values},
     },
     io::pager::Pager,

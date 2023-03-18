@@ -41,13 +41,3 @@ pub trait Query {
     /// Produces the next value in the stream.
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>>;
 }
-
-macro_rules! seq_h {
-    (mut $guard:expr) => {
-        $guard.header.seq_header.as_mut().expect("first page")
-    };
-    ($guard:expr) => {
-        $guard.header.seq_header.as_ref().expect("first page")
-    };
-}
-use seq_h;
