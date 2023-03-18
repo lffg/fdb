@@ -28,12 +28,41 @@ struct State {
     offset: u16,
 }
 
+type Record = SimpleRecord<'static, SchematizedValues<'static>>;
+
 #[async_trait]
 impl Query for LinearScan<'_> {
-    type Item<'a> = SimpleRecord<'static, SchematizedValues<'static>>;
+    type Item<'a> = Record;
 
     #[instrument(name = "TableLinearScan", level = "debug", skip_all)]
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
+        let maybe_record = self.peek(db).await?;
+
+        let Some(record) = maybe_record else {
+            return Ok(None);
+        };
+
+        // SAFETY: `peek` initializes the state.
+        let state = unsafe { self.state.as_mut().unwrap_unchecked() };
+        state.offset += record.size() as u16;
+        state.rem_total -= 1;
+        state.rem_page -= 1;
+
+        Ok(Some(record))
+    }
+}
+
+impl<'a> LinearScan<'a> {
+    /// Creates a new insert executor.
+    pub fn new(table: &'a TableObject) -> LinearScan<'a> {
+        Self { table, state: None }
+    }
+
+    /// Returns the current element without advancing the underlying iterator.
+    ///
+    /// This method doesn't perform any kind of cache, which is handled by the
+    /// underlying database pager.
+    pub async fn peek(&mut self, db: &Db) -> DbResult<Option<Record>> {
         loop {
             let (page_guard, state) =
                 Self::get_or_init_state(db, &mut self.state, self.table.page_id).await?;
@@ -65,21 +94,10 @@ impl Query for LinearScan<'_> {
                 SimpleRecord::<SchematizedValues>::deserialize(buf, serde_ctx)
             })?;
 
-            state.offset += record.size() as u16;
-            state.rem_total -= 1;
-            state.rem_page -= 1;
-
             page.release();
 
             return Ok(Some(record));
         }
-    }
-}
-
-impl<'a> LinearScan<'a> {
-    /// Creates a new insert executor.
-    pub fn new(table: &'a TableObject) -> LinearScan<'a> {
-        Self { table, state: None }
     }
 
     async fn get_or_init_state<'s>(
