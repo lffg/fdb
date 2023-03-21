@@ -33,7 +33,9 @@ pub mod exec {
     pub mod query;
 
     pub mod util {
+        pub mod cmp;
         pub mod macros;
+        pub mod size_buf;
     }
 }
 

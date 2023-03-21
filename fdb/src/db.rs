@@ -6,6 +6,9 @@ use crate::{
     io::{bootstrap, disk_manager::DiskManager, pager::Pager},
 };
 
+/// The default database page size.
+pub const DEFAULT_PAGE_SIZE: u16 = 4 * 1024;
+
 /// A `fdb` database instance.
 pub struct Db {
     pager: Pager,
@@ -17,7 +20,6 @@ impl Db {
     ///
     /// On first access, `true` is returned as the second tuple element.
     pub async fn open(path: &Path) -> DbResult<(Self, bool)> {
-        const DEFAULT_PAGE_SIZE: u16 = 4 * 1024;
         Self::open_with_page_size(path, DEFAULT_PAGE_SIZE).await
     }
 

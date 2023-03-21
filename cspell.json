@@ -7,7 +7,9 @@
   "words": [
     "bruh",
     "bytecode",
+    "curr",
     "dashmap",
+    "Deque",
     "fdb",
     "hasher",
     "impls",
@@ -16,9 +18,11 @@
     "Lichess",
     "moka",
     "parameterizable",
+    "peekable",
     "recv",
     "repr",
     "Roadmap",
+    "rustfmt",
     "thiserror",
     "tokio",
     "Uninit"

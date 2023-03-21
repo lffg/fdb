@@ -89,6 +89,17 @@ where
         self.data
     }
 
+    /// Clears the padding.
+    ///
+    /// Prefer to use the safe interface, [`Self::try_update`].
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that holes won't be formed.
+    pub unsafe fn clear_padding(&mut self) {
+        self.pad_size = 0;
+    }
+
     /// Tries to update the record with the given `new_data`. Three cases may
     /// occur:
     ///
@@ -124,8 +135,13 @@ where
         }
     }
 
+    /// Returns the size of the `data` section.
+    pub fn data_size(&self) -> u32 {
+        self.data.size()
+    }
+
     /// Returns the available size for the `data` section.
-    fn available_data_size(&self) -> u32 {
+    pub fn available_data_size(&self) -> u32 {
         self.size() - 2 - 1
     }
 }
