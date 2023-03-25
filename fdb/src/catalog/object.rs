@@ -1,7 +1,7 @@
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::{DbResult, Error},
-    util::io::{Serde, Size, VarString},
+    util::io::{Deserialize, Serialize, Size, VarString},
 };
 
 /// The database object definition. From the database's point of view, an
@@ -26,14 +26,16 @@ impl Size for Object {
     }
 }
 
-impl Serde<'_> for Object {
+impl Serialize for Object {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         self.page_id.serialize(buf)?;
         VarString::from(self.name.as_str()).serialize(buf)?;
         Ok(())
     }
+}
 
+impl Deserialize<'_> for Object {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -61,7 +63,7 @@ impl Size for ObjectType {
     }
 }
 
-impl Serde<'_> for ObjectType {
+impl Serialize for ObjectType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.discriminant());
         if let ObjectType::Table(schema) = self {
@@ -69,7 +71,9 @@ impl Serde<'_> for ObjectType {
         }
         Ok(())
     }
+}
 
+impl Deserialize<'_> for ObjectType {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,

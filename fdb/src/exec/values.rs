@@ -4,7 +4,7 @@ use crate::{
     catalog::table_schema::TableSchema,
     error::{DbResult, Error},
     exec::value::Value,
-    util::io::{SerdeCtx, Size},
+    util::io::{DeserializeCtx, Serialize, SerializeCtx, Size},
 };
 
 /// An environment that map from column names to database values ([`Value`]).
@@ -91,15 +91,17 @@ impl Size for SchematizedValues<'_> {
     }
 }
 
-impl SerdeCtx<'_, TableSchema, TableSchema> for SchematizedValues<'_> {
+impl SerializeCtx<TableSchema> for SchematizedValues<'_> {
     fn serialize(&self, buf: &mut buff::Buff<'_>, schema: &TableSchema) -> DbResult<()> {
         for column in &schema.columns {
             let value = self.values.get(&column.name).expect("is schematized");
-            value.serialize(buf, &())?;
+            value.serialize(buf)?;
         }
         Ok(())
     }
+}
 
+impl DeserializeCtx<'_, TableSchema> for SchematizedValues<'_> {
     fn deserialize(
         buf: &mut buff::Buff<'_>,
         schema: &TableSchema,

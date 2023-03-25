@@ -2,7 +2,7 @@ use tracing::error;
 
 use crate::{
     error::{DbResult, Error},
-    util::io::{Serde, Size},
+    util::io::{Deserialize, Serialize, Size},
 };
 
 /// `fdb` possible value types.
@@ -30,7 +30,7 @@ impl Size for TypeId {
     }
 }
 
-impl Serde<'_> for TypeId {
+impl Serialize for TypeId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let (hi_discriminant, lo_discriminant) = match self {
             TypeId::Primitive(primitive) => (0, primitive.to_u8()),
@@ -41,7 +41,9 @@ impl Serde<'_> for TypeId {
         buf.write(discriminant);
         Ok(())
     }
+}
 
+impl Deserialize<'_> for TypeId {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -104,12 +106,14 @@ impl Size for PrimitiveTypeId {
     }
 }
 
-impl Serde<'_> for PrimitiveTypeId {
+impl Serialize for PrimitiveTypeId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.to_u8());
         Ok(())
     }
+}
 
+impl Deserialize<'_> for PrimitiveTypeId {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,

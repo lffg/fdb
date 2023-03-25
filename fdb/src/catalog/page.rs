@@ -7,7 +7,7 @@ use tracing::error;
 
 use crate::{
     error::{DbResult, Error},
-    util::io::{Serde, Size},
+    util::io::{Deserialize, Serialize, Size},
 };
 
 /// The first page definition.
@@ -81,14 +81,16 @@ impl Size for Page {
     }
 }
 
-impl Serde<'_> for Page {
+impl Serialize for Page {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         match self {
             Page::First(inner) => inner.serialize(buf),
             Page::Heap(inner) => inner.serialize(buf),
         }
     }
+}
 
+impl Deserialize<'_> for Page {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -124,12 +126,14 @@ impl Size for PageType {
     }
 }
 
-impl Serde<'_> for PageType {
+impl Serialize for PageType {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(*self as u8);
         Ok(())
     }
+}
 
+impl Deserialize<'_> for PageType {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -214,11 +218,13 @@ impl Size for PageId {
     }
 }
 
-impl Serde<'_> for PageId {
+impl Serialize for PageId {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         Some(*self).serialize(buf)
     }
+}
 
+impl Deserialize<'_> for PageId {
     /// Must not try to deserialize a null page ID.
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
@@ -234,13 +240,15 @@ impl Size for Option<PageId> {
     }
 }
 
-impl Serde<'_> for Option<PageId> {
+impl Serialize for Option<PageId> {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let num = self.map(PageId::get).unwrap_or(0);
         buf.write(num);
         Ok(())
     }
+}
 
+impl Deserialize<'_> for Option<PageId> {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -251,7 +259,7 @@ impl Serde<'_> for Option<PageId> {
 }
 
 /// Specific page types.
-pub trait SpecificPage: Sized + for<'a> Serde<'a> {
+pub trait SpecificPage: Sized + Serialize + for<'a> Deserialize<'a> {
     /// Returns the [`PageType`].
     fn ty() -> PageType;
 

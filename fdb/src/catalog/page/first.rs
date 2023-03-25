@@ -3,7 +3,7 @@ use buff::Buff;
 use crate::{
     catalog::page::{Page, PageId, PageType, SpecificPage},
     error::{DbResult, Error},
-    util::io::{read_verify_eq, Serde, Size},
+    util::io::{read_verify_eq, Deserialize, Serialize, Size},
 };
 
 /// The database header size.
@@ -27,13 +27,15 @@ impl Size for FirstPage {
     }
 }
 
-impl Serde<'_> for FirstPage {
+impl Serialize for FirstPage {
     fn serialize(&self, buf: &mut Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         buf.pad_end_bytes(0);
         Ok(())
     }
+}
 
+impl Deserialize<'_> for FirstPage {
     fn deserialize(buf: &mut Buff<'_>) -> DbResult<Self> {
         Ok(FirstPage {
             header: MainHeader::deserialize(buf)?,
@@ -88,7 +90,7 @@ impl Size for MainHeader {
     }
 }
 
-impl Serde<'_> for MainHeader {
+impl Serialize for MainHeader {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.scoped_exact(HEADER_SIZE, |buf| {
             buf.write_slice(b"fdb format");
@@ -105,7 +107,9 @@ impl Serde<'_> for MainHeader {
             Ok::<_, Error>(())
         })
     }
+}
 
+impl Deserialize<'_> for MainHeader {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,

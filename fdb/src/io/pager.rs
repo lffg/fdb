@@ -16,7 +16,7 @@ use crate::{
     catalog::page::{FirstPage, Page, PageId, SpecificPage},
     error::{DbResult, Error},
     io::{cache::Cache, disk_manager::DiskManager},
-    util::io::Serde,
+    util::io::{Deserialize, Serialize},
 };
 
 type LockedPage = RwLock<Page>;

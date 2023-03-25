@@ -17,7 +17,7 @@ use crate::{
         values::{SchematizedValues, Values},
     },
     io::pager::Pager,
-    util::io::{SerdeCtx, Size},
+    util::io::{SerializeCtx, Size},
     Db,
 };
 

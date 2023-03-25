@@ -3,7 +3,7 @@ use std::{fmt, ops::Add};
 use crate::{
     catalog::ty::{PrimitiveTypeId, TypeId},
     error::{DbResult, Error},
-    util::io::{Serde, SerdeCtx, Size, VarBytes, VarString},
+    util::io::{Deserialize, DeserializeCtx, Serialize, Size, VarBytes, VarString},
 };
 
 /// A database value.
@@ -46,8 +46,8 @@ impl Size for Value {
     }
 }
 
-impl SerdeCtx<'_, (), TypeId> for Value {
-    fn serialize(&self, buf: &mut buff::Buff, _ctx: &()) -> DbResult<()> {
+impl Serialize for Value {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         match self {
             Value::Bool(inner) => buf.write(*inner),
             Value::Byte(inner) => buf.write(*inner),
@@ -61,13 +61,15 @@ impl SerdeCtx<'_, (), TypeId> for Value {
                 let len = elements.len() as u16;
                 buf.write(len);
                 for element in elements {
-                    element.serialize(buf, &())?;
+                    element.serialize(buf)?;
                 }
             }
         }
         Ok(())
     }
+}
 
+impl DeserializeCtx<'_, TypeId> for Value {
     fn deserialize(buf: &mut buff::Buff, type_id: &TypeId) -> DbResult<Self> {
         let value = match type_id {
             TypeId::Primitive(primitive_type) => match primitive_type {
@@ -205,7 +207,7 @@ mod tests {
                 let mut buf = [0_u8; EXPECTED_SIZE];
                 let buf = &mut buff::Buff::new(&mut buf);
 
-                value.serialize(buf, &()).expect("serialize");
+                value.serialize(buf).expect("serialize");
                 assert_eq!(buf.get(), EXPECTED, "serialization didn't match");
 
                 buf.seek(0);

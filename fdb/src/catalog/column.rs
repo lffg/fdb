@@ -1,7 +1,7 @@
 use crate::{
     catalog::ty::TypeId,
     error::DbResult,
-    util::io::{Serde, Size, VarString},
+    util::io::{Deserialize, Serialize, Size, VarString},
 };
 
 /// A column definition.
@@ -21,13 +21,15 @@ impl Size for Column {
     }
 }
 
-impl Serde<'_> for Column {
+impl Serialize for Column {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.ty.serialize(buf)?;
         VarString::from(self.name.as_str()).serialize(buf)?;
         Ok(())
     }
+}
 
+impl Deserialize<'_> for Column {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,

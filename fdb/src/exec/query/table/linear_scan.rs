@@ -10,7 +10,7 @@ use crate::{
     error::DbResult,
     exec::{query::Query, util::macros::seq_h, values::SchematizedValues},
     io::pager::PagerGuard,
-    util::io::{SerdeCtx, Size},
+    util::io::{DeserializeCtx, Size},
     Db,
 };
 

@@ -10,7 +10,7 @@ use crate::{
         query::{self, table::LinearScan, Query},
         values::Values,
     },
-    util::io::SerdeCtx,
+    util::io::SerializeCtx,
     Db,
 };
 

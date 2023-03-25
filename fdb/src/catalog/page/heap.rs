@@ -5,7 +5,7 @@ use tracing::{error, trace};
 use crate::{
     catalog::page::{Page, PageId, PageType, SpecificPage},
     error::{DbResult, Error},
-    util::io::{Serde, Size},
+    util::io::{Deserialize, Serialize, Size},
 };
 
 /// The first [`HeapPage`] in the sequence.
@@ -23,7 +23,7 @@ impl Size for HeapPage {
     }
 }
 
-impl Serde<'_> for HeapPage {
+impl Serialize for HeapPage {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         self.header.serialize(buf)?;
         buf.write_slice(&self.bytes);
@@ -31,7 +31,9 @@ impl Serde<'_> for HeapPage {
 
         Ok(())
     }
+}
 
+impl Deserialize<'_> for HeapPage {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -182,7 +184,7 @@ impl Size for Header {
     }
 }
 
-impl Serde<'_> for Header {
+impl Serialize for Header {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         HeapPage::ty().serialize(buf)?;
         self.id.serialize(buf)?;
@@ -192,7 +194,9 @@ impl Serde<'_> for Header {
         buf.write(self.free_offset);
         Ok(())
     }
+}
 
+impl Deserialize<'_> for Header {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
@@ -227,7 +231,7 @@ impl Size for Option<SeqHeader> {
     }
 }
 
-impl Serde<'_> for Option<SeqHeader> {
+impl Serialize for Option<SeqHeader> {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         let Some(header) = self else {
             buf.write(0xAA_u8);
@@ -239,7 +243,9 @@ impl Serde<'_> for Option<SeqHeader> {
         buf.write(header.record_count);
         Ok(())
     }
+}
 
+impl Deserialize<'_> for Option<SeqHeader> {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,

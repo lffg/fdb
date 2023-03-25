@@ -8,7 +8,7 @@ use std::{
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::DbResult,
-    util::io::{Serde, SerdeCtx, Size},
+    util::io::{Deserialize, DeserializeCtx, Serialize, SerializeCtx, Size},
 };
 
 /// A simple database record. May store arbitrary bytes which are to be
@@ -142,26 +142,32 @@ where
     }
 }
 
-/// Serde implementation for table's data records.
-impl<D> SerdeCtx<'_, TableRecordCtx<'_>, TableRecordCtx<'_>> for SimpleRecord<'_, D>
+/// Serialize implementation for table's data records.
+impl<D> SerializeCtx<TableRecordCtx<'_>> for SimpleRecord<'_, D>
 where
-    D: for<'a> SerdeCtx<'a, TableSchema, TableSchema> + Clone,
+    D: SerializeCtx<TableSchema> + Clone,
 {
     fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: &TableRecordCtx<'_>) -> DbResult<()> {
         buf.write(self.total_size);
         buf.write(self.is_deleted);
-        self.data.serialize(buf, &ctx.schema)?;
+        self.data.serialize(buf, ctx.schema)?;
         buf.write_bytes(self.pad_size as usize, 0);
         Ok(())
     }
+}
 
+/// Deserialize implementation for table's data records.
+impl<D> DeserializeCtx<'_, TableRecordCtx<'_>> for SimpleRecord<'_, D>
+where
+    D: for<'a> DeserializeCtx<'a, TableSchema> + Size + Clone,
+{
     fn deserialize(buf: &mut buff::Buff<'_>, ctx: &TableRecordCtx<'_>) -> DbResult<Self>
     where
         Self: Sized,
     {
         let total_size: u16 = buf.read();
         let is_deleted: bool = buf.read();
-        let data = D::deserialize(buf, &ctx.schema)?;
+        let data = D::deserialize(buf, ctx.schema)?;
 
         let pad_size = total_size - 2 - 1 - data.size() as u16;
 
@@ -186,19 +192,25 @@ where
     }
 }
 
-/// Serde implementation for general [`Serde`] types.
-impl<D> SerdeCtx<'_, (), SimpleCtx> for SimpleRecord<'_, D>
+/// Serialize implementation for general [`Serialize`] types.
+impl<D> Serialize for SimpleRecord<'_, D>
 where
-    D: for<'a> Serde<'a> + Clone,
+    D: Serialize + Clone,
 {
-    fn serialize(&self, buf: &mut buff::Buff<'_>, _ctx: &()) -> DbResult<()> {
+    fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         buf.write(self.total_size);
         buf.write(self.is_deleted);
         self.data.serialize(buf)?;
         buf.write_bytes(self.pad_size as usize, 0);
         Ok(())
     }
+}
 
+/// Deserialize implementation for general [`Deserialize`] types.
+impl<D> DeserializeCtx<'_, SimpleCtx> for SimpleRecord<'_, D>
+where
+    D: for<'a> Deserialize<'a> + Size + Clone,
+{
     fn deserialize(buf: &mut buff::Buff<'_>, ctx: &SimpleCtx) -> DbResult<Self>
     where
         Self: Sized,

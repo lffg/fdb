@@ -1,7 +1,7 @@
 use crate::{
     catalog::column::Column,
     error::DbResult,
-    util::io::{Serde, Size, VarList},
+    util::io::{Deserialize, Serialize, Size, VarList},
 };
 
 /// A table schema.
@@ -20,12 +20,14 @@ impl Size for TableSchema {
     }
 }
 
-impl Serde<'_> for TableSchema {
+impl Serialize for TableSchema {
     fn serialize(&self, buf: &mut buff::Buff<'_>) -> DbResult<()> {
         VarList::from(self.columns.as_slice()).serialize(buf)?;
         Ok(())
     }
+}
 
+impl Deserialize<'_> for TableSchema {
     fn deserialize(buf: &mut buff::Buff<'_>) -> DbResult<Self>
     where
         Self: Sized,
