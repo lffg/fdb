@@ -29,6 +29,8 @@ pub mod exec {
     pub mod value;
     pub mod values;
 
+    pub mod operations;
+
     pub mod object;
     pub mod query;
 

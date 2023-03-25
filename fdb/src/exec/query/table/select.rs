@@ -5,7 +5,7 @@ use crate::{
     catalog::object::TableObject,
     error::DbResult,
     exec::{
-        query::{table::LinearScan, Query},
+        query::{table::SeqScan, Query},
         values::Values,
     },
     Db,
@@ -13,7 +13,7 @@ use crate::{
 
 /// A select query.
 pub struct Select<'a> {
-    linear_scan: LinearScan<'a>,
+    linear_scan: SeqScan<'a>,
 }
 
 #[async_trait]
@@ -41,7 +41,7 @@ impl Query for Select<'_> {
 impl<'a> Select<'a> {
     pub fn new(table: &'a TableObject) -> Select<'a> {
         Self {
-            linear_scan: LinearScan::new(table),
+            linear_scan: SeqScan::new(table),
         }
     }
 }

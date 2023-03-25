@@ -5,7 +5,7 @@ use crate::{
     catalog::{object::TableObject, page::HeapPage, record::simple_record},
     error::DbResult,
     exec::{
-        query::{table::LinearScan, Query},
+        query::{table::SeqScan, Query},
         values::Values,
     },
     util::io::SerializeCtx,
@@ -18,7 +18,7 @@ pub type Pred = dyn Sync + for<'v> Fn(&'v Values) -> bool;
 /// A delete query.
 pub struct Delete<'a> {
     table: &'a TableObject,
-    linear_scan: LinearScan<'a>,
+    seq_scan: SeqScan<'a>,
     pred: &'a Pred,
 }
 
@@ -30,7 +30,7 @@ impl Query for Delete<'_> {
     #[instrument(name = "TableDelete", level = "debug", skip_all)]
     async fn next<'a>(&mut self, db: &'a Db) -> DbResult<Option<Self::Item<'a>>> {
         loop {
-            let out = if let Some(mut record) = self.linear_scan.next(db).await? {
+            let out = if let Some(mut record) = self.seq_scan.next(db).await? {
                 let values = record.as_data().as_values();
 
                 if record.is_deleted() || !(self.pred)(values) {
@@ -66,7 +66,7 @@ impl Query for Delete<'_> {
 impl<'s> Delete<'s> {
     pub fn new(table: &'s TableObject, pred: &'s Pred) -> Delete<'s> {
         Self {
-            linear_scan: LinearScan::new(table),
+            seq_scan: SeqScan::new(table),
             table,
             pred,
         }

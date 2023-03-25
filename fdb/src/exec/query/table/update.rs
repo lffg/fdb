@@ -7,7 +7,7 @@ use crate::{
     catalog::{object::TableObject, page::HeapPage, record::simple_record},
     error::DbResult,
     exec::{
-        query::{self, table::LinearScan, Query},
+        query::{self, table::SeqScan, Query},
         values::Values,
     },
     util::io::SerializeCtx,
@@ -23,7 +23,7 @@ pub type Updater = dyn Sync + for<'v> Fn(&'v mut Values);
 /// An update query.
 pub struct Update<'a> {
     table: &'a TableObject,
-    linear_scan: LinearScan<'a>,
+    linear_scan: SeqScan<'a>,
     pred: &'a Pred,
     updater: &'a Updater,
 }
@@ -95,7 +95,7 @@ impl<'s> Update<'s> {
     pub fn new(table: &'s TableObject, pred: &'s Pred, updater: &'s Updater) -> Update<'s> {
         Self {
             table,
-            linear_scan: LinearScan::new(table),
+            linear_scan: SeqScan::new(table),
             pred,
             updater,
         }

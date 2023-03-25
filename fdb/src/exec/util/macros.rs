@@ -7,3 +7,18 @@ macro_rules! seq_h {
     };
 }
 pub(crate) use seq_h;
+
+macro_rules! get_or_insert_with {
+    ($opt:expr, || $($init:tt)*) => {
+        match $opt {
+            Some(inner) => inner,
+            opt @ None => {
+                let init_val = {
+                    $($init)*
+                };
+                opt.insert(init_val)
+            }
+        }
+    }
+}
+pub(crate) use get_or_insert_with;

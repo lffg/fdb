@@ -25,8 +25,8 @@ pub mod table {
 
     // Private-implementation queries.
 
-    mod linear_scan;
-    use linear_scan::*;
+    mod seq_scan;
+    use seq_scan::*;
 }
 
 /// Query execution trait. It is implemented for all database operations.

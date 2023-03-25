@@ -83,6 +83,19 @@ impl Pager {
         })
     }
 
+    /// Reads the given page, exposing its data in the given closure.
+    pub async fn read_with<S, F, R>(&self, page_id: PageId, f: F) -> DbResult<R>
+    where
+        S: SpecificPage,
+        F: FnOnce(&S) -> R,
+    {
+        let guard = self.get::<S>(page_id).await?;
+        let page = guard.read().await;
+        let ret = f(&*page);
+        page.release();
+        Ok(ret)
+    }
+
     /// Flushes all available pages.
     // XX: Review this design, which imposes read-only queries to call
     // `flush_all` in order to clean the used records from `in_use`. Ideally,

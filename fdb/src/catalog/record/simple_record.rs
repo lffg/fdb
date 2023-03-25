@@ -8,6 +8,7 @@ use std::{
 use crate::{
     catalog::{page::PageId, table_schema::TableSchema},
     error::DbResult,
+    exec::operations::PhysicalState,
     util::io::{Deserialize, DeserializeCtx, Serialize, SerializeCtx, Size},
 };
 
@@ -243,7 +244,7 @@ where
 }
 
 pub struct SimpleCtx {
-    /// The [`PageId`].
+    /// The [`PageId`] of the page where the record is present.
     pub page_id: PageId,
     /// The starting offset of the record.
     ///
@@ -252,13 +253,34 @@ pub struct SimpleCtx {
     pub offset: u16,
 }
 
+impl SimpleCtx {
+    /// Constructs a [`SimpleCtx`] from the given [`PhysicalState`].
+    pub fn from_physical(physical: PhysicalState) -> Self {
+        Self {
+            page_id: physical.page_id,
+            offset: physical.offset,
+        }
+    }
+}
+
 pub struct TableRecordCtx<'a> {
-    /// The [`PageId`].
+    /// The [`PageId`] of the page where the record is present.
     pub page_id: PageId,
-    /// The table schema associated with the record.
-    pub schema: &'a TableSchema,
     /// The starting offset of the record. For more info, see [`OffsetCtx`].
     pub offset: u16,
+    /// The table schema associated with the record.
+    pub schema: &'a TableSchema,
+}
+
+impl<'a> TableRecordCtx<'a> {
+    /// Constructs a [`TableRecord`] from the given [`PhysicalState`].
+    pub fn from_physical(physical: PhysicalState, schema: &'a TableSchema) -> TableRecordCtx<'a> {
+        Self {
+            page_id: physical.page_id,
+            offset: physical.offset,
+            schema,
+        }
+    }
 }
 
 impl<D> Debug for SimpleRecord<'_, D>
