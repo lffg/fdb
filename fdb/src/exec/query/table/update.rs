@@ -64,14 +64,14 @@ impl Query for Update<'_> {
                 match record.try_update(schematized_values) {
                     Ok(_) => {
                         debug!("updated in place");
-                        page.write_at(offset, |buf| record.serialize(buf, serde_ctx))?;
+                        page.write_at(offset, |buf| record.serialize(buf, &serde_ctx))?;
                         page.flush();
                     }
                     Err(new_data) => {
                         debug!("new record didn't fit; allocating new space");
 
                         record.set_deleted();
-                        page.write_at(offset, |buf| record.serialize(buf, serde_ctx))?;
+                        page.write_at(offset, |buf| record.serialize(buf, &serde_ctx))?;
                         // Must flush before executing `Insert`. Otherwise, deadlock. t-t
                         page.flush();
 

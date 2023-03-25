@@ -62,7 +62,7 @@ impl Query for Select {
             };
 
             let record = page.read_at(state.offset, |buf| {
-                SimpleRecord::<Object>::deserialize(buf, serde_ctx)
+                SimpleRecord::<Object>::deserialize(buf, &serde_ctx)
             })?;
 
             state.offset += record.size() as u16;

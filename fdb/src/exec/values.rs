@@ -91,11 +91,11 @@ impl Size for SchematizedValues<'_> {
     }
 }
 
-impl SerdeCtx<'_, &TableSchema, &TableSchema> for SchematizedValues<'_> {
+impl SerdeCtx<'_, TableSchema, TableSchema> for SchematizedValues<'_> {
     fn serialize(&self, buf: &mut buff::Buff<'_>, schema: &TableSchema) -> DbResult<()> {
         for column in &schema.columns {
             let value = self.values.get(&column.name).expect("is schematized");
-            value.serialize(buf, ())?;
+            value.serialize(buf, &())?;
         }
         Ok(())
     }
@@ -109,7 +109,7 @@ impl SerdeCtx<'_, &TableSchema, &TableSchema> for SchematizedValues<'_> {
     {
         let mut inner = HashMap::with_capacity(schema.columns.len());
         for column in &schema.columns {
-            let value = Value::deserialize(buf, column.ty)?;
+            let value = Value::deserialize(buf, &column.ty)?;
             inner.insert(column.name.to_owned(), value);
         }
         // SAFETY: Database assumes that is just stores valid records.

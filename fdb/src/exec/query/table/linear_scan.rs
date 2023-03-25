@@ -91,7 +91,7 @@ impl<'a> LinearScan<'a> {
             };
 
             let record = page.read_at(state.offset, |buf| {
-                SimpleRecord::<SchematizedValues>::deserialize(buf, serde_ctx)
+                SimpleRecord::<SchematizedValues>::deserialize(buf, &serde_ctx)
             })?;
 
             page.release();

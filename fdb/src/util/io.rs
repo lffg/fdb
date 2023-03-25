@@ -35,10 +35,10 @@ pub trait Serde<'a>: Size {
 /// See types which implement this trait for examples.
 pub trait SerdeCtx<'a, SerCtx, DeCtx>: Size {
     /// Serializes the page.
-    fn serialize(&self, buf: &mut Buff<'_>, ctx: SerCtx) -> DbResult<()>;
+    fn serialize(&self, buf: &mut Buff<'_>, ctx: &SerCtx) -> DbResult<()>;
 
     /// Deserializes the page.
-    fn deserialize(buf: &mut Buff<'a>, ctx: DeCtx) -> DbResult<Self>
+    fn deserialize(buf: &mut Buff<'a>, ctx: &DeCtx) -> DbResult<Self>
     where
         Self: Sized;
 }

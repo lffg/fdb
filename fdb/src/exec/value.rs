@@ -47,7 +47,7 @@ impl Size for Value {
 }
 
 impl SerdeCtx<'_, (), TypeId> for Value {
-    fn serialize(&self, buf: &mut buff::Buff, _ctx: ()) -> DbResult<()> {
+    fn serialize(&self, buf: &mut buff::Buff, _ctx: &()) -> DbResult<()> {
         match self {
             Value::Bool(inner) => buf.write(*inner),
             Value::Byte(inner) => buf.write(*inner),
@@ -61,14 +61,14 @@ impl SerdeCtx<'_, (), TypeId> for Value {
                 let len = elements.len() as u16;
                 buf.write(len);
                 for element in elements {
-                    element.serialize(buf, ())?;
+                    element.serialize(buf, &())?;
                 }
             }
         }
         Ok(())
     }
 
-    fn deserialize(buf: &mut buff::Buff, type_id: TypeId) -> DbResult<Self> {
+    fn deserialize(buf: &mut buff::Buff, type_id: &TypeId) -> DbResult<Self> {
         let value = match type_id {
             TypeId::Primitive(primitive_type) => match primitive_type {
                 PrimitiveTypeId::Bool => Value::Bool(buf.read()),
@@ -84,9 +84,9 @@ impl SerdeCtx<'_, (), TypeId> for Value {
                 let len: u16 = buf.read();
                 let mut elements = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    elements.push(Value::deserialize(buf, TypeId::Primitive(element_type))?);
+                    elements.push(Value::deserialize(buf, &TypeId::Primitive(*element_type))?);
                 }
-                Value::Array(element_type, elements)
+                Value::Array(*element_type, elements)
             }
         };
         Ok(value)
@@ -205,11 +205,11 @@ mod tests {
                 let mut buf = [0_u8; EXPECTED_SIZE];
                 let buf = &mut buff::Buff::new(&mut buf);
 
-                value.serialize(buf, ()).expect("serialize");
+                value.serialize(buf, &()).expect("serialize");
                 assert_eq!(buf.get(), EXPECTED, "serialization didn't match");
 
                 buf.seek(0);
-                let deserialized_value = Value::deserialize(buf, ty).expect("deserialize");
+                let deserialized_value = Value::deserialize(buf, &ty).expect("deserialize");
                 assert_eq!(deserialized_value, value, "deserialization didn't match");
 
                 assert_eq!(value.size(), EXPECTED_SIZE as u32);

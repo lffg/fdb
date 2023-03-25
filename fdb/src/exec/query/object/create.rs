@@ -79,7 +79,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
 
     if page.can_accommodate(size) {
         debug!("fit right in");
-        page.write(|buf| record.serialize(buf, ()))?;
+        page.write(|buf| record.serialize(buf, &()))?;
         page.header.record_count += 1;
 
         return Ok(None);
@@ -102,7 +102,7 @@ async fn write(pager: &Pager, page: &mut HeapPage, schema: &Object) -> DbResult<
         )));
     }
 
-    new_page.write(|buf| record.serialize(buf, ()))?;
+    new_page.write(|buf| record.serialize(buf, &()))?;
     new_page.header.record_count += 1;
 
     new_page.flush();

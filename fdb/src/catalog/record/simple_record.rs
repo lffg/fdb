@@ -145,23 +145,23 @@ where
 /// Serde implementation for table's data records.
 impl<D> SerdeCtx<'_, TableRecordCtx<'_>, TableRecordCtx<'_>> for SimpleRecord<'_, D>
 where
-    D: for<'a, 'ser, 'de> SerdeCtx<'a, &'ser TableSchema, &'de TableSchema> + Clone,
+    D: for<'a> SerdeCtx<'a, TableSchema, TableSchema> + Clone,
 {
-    fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: TableRecordCtx<'_>) -> DbResult<()> {
+    fn serialize(&self, buf: &mut buff::Buff<'_>, ctx: &TableRecordCtx<'_>) -> DbResult<()> {
         buf.write(self.total_size);
         buf.write(self.is_deleted);
-        self.data.serialize(buf, ctx.schema)?;
+        self.data.serialize(buf, &ctx.schema)?;
         buf.write_bytes(self.pad_size as usize, 0);
         Ok(())
     }
 
-    fn deserialize(buf: &mut buff::Buff<'_>, ctx: TableRecordCtx<'_>) -> DbResult<Self>
+    fn deserialize(buf: &mut buff::Buff<'_>, ctx: &TableRecordCtx<'_>) -> DbResult<Self>
     where
         Self: Sized,
     {
         let total_size: u16 = buf.read();
         let is_deleted: bool = buf.read();
-        let data = D::deserialize(buf, ctx.schema)?;
+        let data = D::deserialize(buf, &ctx.schema)?;
 
         let pad_size = total_size - 2 - 1 - data.size() as u16;
 
@@ -191,7 +191,7 @@ impl<D> SerdeCtx<'_, (), SimpleCtx> for SimpleRecord<'_, D>
 where
     D: for<'a> Serde<'a> + Clone,
 {
-    fn serialize(&self, buf: &mut buff::Buff<'_>, _ctx: ()) -> DbResult<()> {
+    fn serialize(&self, buf: &mut buff::Buff<'_>, _ctx: &()) -> DbResult<()> {
         buf.write(self.total_size);
         buf.write(self.is_deleted);
         self.data.serialize(buf)?;
@@ -199,7 +199,7 @@ where
         Ok(())
     }
 
-    fn deserialize(buf: &mut buff::Buff<'_>, ctx: SimpleCtx) -> DbResult<Self>
+    fn deserialize(buf: &mut buff::Buff<'_>, ctx: &SimpleCtx) -> DbResult<Self>
     where
         Self: Sized,
     {

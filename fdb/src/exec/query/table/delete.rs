@@ -50,7 +50,7 @@ impl Query for Delete<'_> {
                 };
 
                 record.set_deleted();
-                page.write_at(offset, |buf| record.serialize(buf, ctx))?;
+                page.write_at(offset, |buf| record.serialize(buf, &ctx))?;
 
                 page.flush();
                 Some(())

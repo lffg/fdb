@@ -96,7 +96,7 @@ async fn write(
 
     if page.can_accommodate(size) {
         debug!("fit right in");
-        page.write(|buf| record.serialize(buf, serde_ctx))?;
+        page.write(|buf| record.serialize(buf, &serde_ctx))?;
         page.header.record_count += 1;
 
         return Ok(None);
@@ -119,7 +119,7 @@ async fn write(
         )));
     }
 
-    new_page.write(|buf| record.serialize(buf, serde_ctx))?;
+    new_page.write(|buf| record.serialize(buf, &serde_ctx))?;
     new_page.header.record_count += 1;
 
     // Links the new page.
