@@ -266,14 +266,14 @@ impl SimpleCtx {
 pub struct TableRecordCtx<'a> {
     /// The [`PageId`] of the page where the record is present.
     pub page_id: PageId,
-    /// The starting offset of the record. For more info, see [`OffsetCtx`].
+    /// The starting offset of the record. For more info, see [`SimpleCtx`].
     pub offset: u16,
     /// The table schema associated with the record.
     pub schema: &'a TableSchema,
 }
 
 impl<'a> TableRecordCtx<'a> {
-    /// Constructs a [`TableRecord`] from the given [`PhysicalState`].
+    /// Constructs a [`TableRecordCtx`] from the given [`PhysicalState`].
     pub fn from_physical(physical: PhysicalState, schema: &'a TableSchema) -> TableRecordCtx<'a> {
         Self {
             page_id: physical.page_id,

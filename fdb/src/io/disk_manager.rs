@@ -39,7 +39,7 @@ impl DiskManager {
     ///
     /// # Panics
     ///
-    /// - If `buf`'s length is different than [`PAGE_SIZE`].
+    /// - If `buf`'s length is different than the page size.
     pub async fn read_page(&mut self, page_id: PageId, buf: &mut [u8]) -> DbResult<()> {
         info!(?page_id, "reading page from disk");
         assert_eq!(buf.len(), self.page_size as usize);
@@ -70,7 +70,7 @@ impl DiskManager {
     ///
     /// # Panics
     ///
-    /// - If `buf`'s length is different than [`PAGE_SIZE`].
+    /// - If `buf`'s length is different than the page size.
     pub async fn write_page(&mut self, page_id: PageId, buf: &[u8]) -> DbResult<()> {
         info!(?page_id, "writing page to disk");
         assert_eq!(buf.len(), self.page_size as usize);
