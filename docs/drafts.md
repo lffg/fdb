@@ -8,6 +8,14 @@
 - `pager` tests; mock `DiskManager`.
 - Buff Trait. P0.
 
+- Primitive heap insert operation.
+  - Assuming that the insert operation would be able to insert many records "at
+    once", its implementation should avoid performing one flush per record
+    inserted.
+- Trait over `Db` common operations, such as `flush` etc. This way, one could
+  provide a `BufDb` type (`BufDb: Db`), which would be used by the heap
+  primitive insert operation to avoid one flush per inserted-record.
+
 Ideias:
 
 - Abstrair operações de cada tipo de página na implementação da própria página?
