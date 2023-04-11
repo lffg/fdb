@@ -18,6 +18,10 @@ pub use first::*;
 mod heap;
 pub use heap::*;
 
+/// The B-Tree page definition.
+mod b_tree;
+pub use b_tree::*;
+
 /// An in-memory page.
 ///
 /// Since the database engine can interpret the "raw page" sequence of bytes,
@@ -32,6 +36,7 @@ pub use heap::*;
 pub enum Page {
     First(FirstPage),
     Heap(HeapPage),
+    BTree(BTreePage),
 }
 
 impl Page {
@@ -40,6 +45,7 @@ impl Page {
         match self {
             Page::First(inner) => inner.id(),
             Page::Heap(inner) => inner.id(),
+            Page::BTree(inner) => inner.id(),
         }
     }
 
@@ -49,6 +55,7 @@ impl Page {
         match self {
             Page::First(_) => FirstPage::ty(),
             Page::Heap(_) => HeapPage::ty(),
+            Page::BTree(_) => BTreePage::ty(),
         }
     }
 
@@ -77,6 +84,7 @@ impl Size for Page {
         match self {
             Page::First(inner) => inner.size(),
             Page::Heap(inner) => inner.size(),
+            Page::BTree(inner) => inner.size(),
         }
     }
 }
@@ -86,6 +94,7 @@ impl Serialize for Page {
         match self {
             Page::First(inner) => inner.serialize(buf),
             Page::Heap(inner) => inner.serialize(buf),
+            Page::BTree(inner) => inner.serialize(buf),
         }
     }
 }
@@ -103,6 +112,7 @@ impl Deserialize<'_> for Page {
         Ok(match ty {
             PageType::First => Page::First(FirstPage::deserialize(buf)?),
             PageType::Heap => Page::Heap(HeapPage::deserialize(buf)?),
+            PageType::BTree => Page::BTree(BTreePage::deserialize(buf)?),
         })
     }
 }
@@ -118,6 +128,8 @@ pub enum PageType {
     First = 0x66,
     /// See [`HeapPage`].
     Heap = 0x01,
+    /// See [`BTreePage`].
+    BTree = 0x02,
 }
 
 impl Size for PageType {
